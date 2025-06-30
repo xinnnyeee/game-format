@@ -69,17 +69,8 @@ const Landing = () => {
     // Prevent selection of the "choose" header card
     if (formatId !== "choose") {
       setSelectedFormat(formatId);
-      if (formatId == "round-robin") {
-        navigate("/RRInput", { state: { selectedFormat } });
-      } else if (formatId == "single-knockout") {
-        navigate("/SKInput", { state: { selectedFormat } });
-      } else if (formatId == "open-play") {
-        navigate("/OPInput", { state: { selectedFormat } });
-      } else if (formatId == "king-of-the-court") {
-        navigate("/KOTCInput", { state: { selectedFormat } });
-      } else {
-        console.log("no valid format selected");
-      }
+      localStorage.setItem("selectedFormat", formatId);
+      navigate("/InputPage");
     }
   };
 

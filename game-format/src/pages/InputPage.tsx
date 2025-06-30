@@ -1,19 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 import trashIcon from "../assets/trash.png";
-import RRGamePage from "./RRGamePage";
 import { useNavigate } from "react-router-dom";
 //import {Player} from "../utils/RRDoublesGenerator";
 
 export default function RRInputPage() {
-  const location = useLocation();
-  const selectedFormat = location.state?.selectedFormat;
+  const location = useLocation(); // needed to pass states around
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  useEffect(() => {
+    const storedFormat = localStorage.getItem("selectedFormat");
+    console.log(`${storedFormat}`);
+    setSelectedFormat(storedFormat);
+  }, []);
   const [playerFormat, setPlayerFormat] = useState<"single" | "double" | null>(
     null
   );
   // create an array to record players as a "useState" - start with 8 players
-  const [players, setPlayers] = useState(Array(8).fill(""));
+  const [players, setPlayers] = useState<string[]>(() => {
+    // Check if we're returning from game page with previous players
+    const previousPlayers = location.state?.previousPlayers;
+    if (previousPlayers && Array.isArray(previousPlayers)) {
+      return previousPlayers;
+    }
+
+    // Otherwise try localStorage
+    const stored = localStorage.getItem("Players");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : parsed.players || [];
+    }
+
+    // Default empty array
+    return [];
+  });
   const navigate = useNavigate();
 
   // reads the input and add to the array
@@ -40,11 +60,20 @@ export default function RRInputPage() {
     }
   };
   const enterGame = () => {
-    const stateToPass = {
-      players,
-    };
-    localStorage.setItem("RRPlayers", JSON.stringify(stateToPass));
-    navigate("./RRGamePage", { state: stateToPass });
+    localStorage.setItem("Players", JSON.stringify(players));
+    if (selectedFormat == "round-robin") {
+      navigate("./RRGamePage", { state: players });
+    } else if (selectedFormat == "single-knockout") {
+      navigate("./SKGamePage", { state: players });
+    } else if (selectedFormat == "open-play") {
+      navigate("./OPGamePage", { state: players });
+    } else if (selectedFormat == "king-of-the-court") {
+      navigate("./KOTCGamePage", { state: players });
+    } else {
+      console.log(
+        `Unable to enter game due to invalid game format: ${selectedFormat}!`
+      );
+    }
   };
 
   return (

@@ -4,7 +4,7 @@ export type Player = {
   };
   
   export type Team = [Player, Player];
-  export type Match = [Team, Team];
+  export type Match = {id : string, team1: Team, team2: Team, score1: number, score2: number};
   export type Session = [Match, Match];
   export type Schedule = Session[];
   
@@ -22,10 +22,8 @@ export type Player = {
   }
   
   export function generateMatchesPerRound(numOfPlayers: number): number {
-    if (numOfPlayers >= 12 && numOfPlayers <= 14) {
-      return 3;
-    } else if (numOfPlayers >= 8 && numOfPlayers < 12) {
-      return 2;
+    if (numOfPlayers >= 8 && numOfPlayers <= 14) {
+      return Math.floor(numOfPlayers / 4);
     } else {
       return -1;
     }
@@ -56,6 +54,7 @@ export type Player = {
     return generateSessionsFromMatches(allMatches, numOfMatchesPerRound);
   }
   
+  // turns 12 34 56 78 into 2 matches 
   export function generateMatchesFromPlayers(players: Player[]): Match[] {
     if (players.length % 4 !== 0) {
       console.log("invalid number of players");
@@ -75,18 +74,24 @@ export type Player = {
     while (teamList.length >= 2) {
       const t1 = teamList.shift()!;
       const t2 = teamList.shift()!;
-      matchList.push([t1, t2]);
+      const match : Match = {
+        id:crypto.randomUUID(), 
+        team1: t1, 
+        team2: t2, 
+        score1: 0, 
+        score2: 0
+      }
+      matchList.push(match);
     }
   
     return matchList;
   }
   
-  
   export function generateSessionsFromMatches(matches: Match[], numOfMatchesPerRound: number): Session[] {
     const sessList: Session[] = [];
     const matchesCopy = [...matches];
     const dummyPlayer: Player = { name: "BYE", score: 0 };
-    const dummyMatch: Match = [[dummyPlayer, dummyPlayer], [dummyPlayer, dummyPlayer]];
+    const dummyMatch: Match = {id: crypto.randomUUID(), team1: [dummyPlayer, dummyPlayer], team2: [dummyPlayer, dummyPlayer], score1: 0, score2: 0};
   
     if (numOfMatchesPerRound === 2) {
       while (matchesCopy.length >= 2) {
@@ -111,6 +116,29 @@ export type Player = {
     }
   
     return sessList;
+  }
+
+  export function tallyMatchScore( games : Schedule) {
+    // distribute the score of matches to its players
+    for (let i = 0; i < games.length; i++) {
+      const sess = games[i];
+      for (let j = 0; j < sess.length; j++) {
+        // take the score on each match, score 1 => team 1, score 2 => team 2
+        const match : Match = sess[j];
+        addAssignedScore(match.team1, match.score1);
+        addAssignedScore(match.team2, match.score2);
+      }
+    }
+  }
+
+  export function addAssignedScore(team: Team, score: number) {
+    team[0].score += score;
+    team[1].score += score;
+  }
+
+  export function makeAssignedScore(team: Team, score: number) {
+    team[0].score = score;
+    team[1].score = score;
   }
   
 

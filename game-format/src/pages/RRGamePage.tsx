@@ -1,7 +1,10 @@
 import logo from "../assets/logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { generateDoubleMatchesFromPlayers } from "../utils/RRDoublesGenerator";
+import {
+  generateDoubleMatchesFromPlayers,
+  tallyMatchScore,
+} from "../utils/RRDoublesGenerator";
 import type {
   Player,
   Team,
@@ -14,33 +17,45 @@ const RRGamePage = () => {
   const [currentGame, setCurrentGame] = useState(1);
   const location = useLocation();
   const navigate = useNavigate();
-  const [state, setState] = useState(() => {
-    return (
-      location.state || JSON.parse(localStorage.getItem("RRPlayers") || "null")
-    );
+  const [state, setState] = useState<string[] | null>(() => {
+    const locationState = location.state;
+    const storedState = JSON.parse(localStorage.getItem("Players") || "null");
+
+    // Handle both array format and object format
+    const getPlayersArray = (data: any) => {
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.players)) return data.players;
+      return null;
+    };
+
+    return getPlayersArray(locationState) || getPlayersArray(storedState);
   });
 
   useEffect(() => {
-    if (!state) {
-      navigate("../RRInput", { replace: true });
+    if (!state || !Array.isArray(state)) {
+      navigate("./InputPage", { replace: true });
     }
   }, [state, navigate]);
-  const players: Player[] = state.map((playerName: String) => ({
-    playerName,
+
+  // Early return if state is invalid
+  if (!state || !Array.isArray(state)) return null;
+
+  // Now we know state is an array of strings
+  const players: Player[] = state.map((playerName: string) => ({
+    name: playerName,
     score: 0,
   }));
 
-  if (!state) return null;
-
   const games: Schedule = generateDoubleMatchesFromPlayers(players);
+
   const totalGames = games.length;
 
-  const currentGameData = games[currentGame - 1] || games[0];
+  const currentGameData = games[currentGame - 1] || games[0]; // one session
 
   const progressPercentage = (currentGame / totalGames) * 100;
 
   const handleGameSetup = () => {
-    navigate("../RRInput");
+    navigate("../InputPage");
   };
 
   const handlePrevGame = () => {
@@ -55,15 +70,20 @@ const RRGamePage = () => {
     }
   };
 
-  const handleWinnerSelect = (
-    court: string,
-    player1: Player,
-    player2: Player
-  ) => {
-    // Handle winner selection logic here
-    console.log(`${player1} and ${player2} wins on ${court}`);
+  const handleScoreInput = (match: Match, score: number, team: number) => {
+    // assign score to matches
+    // team : 1 or 2
+    if (team === 1) {
+      match.score1 = score;
+    } else if (team === 2) {
+      match.score2 = score;
+    } else {
+      console.log(`invalid team number: ${team}`);
+    }
   };
 
+  const endGame = () => {};
+  tallyMatchScore(games);
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto">
@@ -142,42 +162,53 @@ const RRGamePage = () => {
             </div>
             <div className="p-6">
               <p className="flex justify-end text-sm text-gray-600 mb-6 tracking-wider">
-                WINNER
+                SCORE
               </p>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-semibold tracking-wider">
-                    {currentGameData[0][0][0].name} &{" "}
-                    {currentGameData[0][0][1].name}
+                    {currentGameData[0].team1[0].name} &{" "}
+                    {currentGameData[0].team1[1].name}
                   </span>
-                  <button
-                    onClick={() =>
-                      handleWinnerSelect(
-                        "court1",
-                        currentGameData[0][0][0],
-                        currentGameData[0][0][1]
+                  <input
+                    type="text"
+                    maxLength={2} // Limit to 2 digits
+                    inputMode="numeric" // Triggers numeric keyboard on mobile
+                    pattern="\d*"
+                    onChange={(e) =>
+                      handleScoreInput(
+                        currentGameData[0],
+                        Number(e.target.value),
+                        1
                       )
                     }
-                    className="w-6 h-6 border-2 border-gray-400 rounded-full hover:border-black transition-colors focus:outline-none focus:border-black"
-                  ></button>
+                    className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
+                  />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-semibold tracking-wider">
-                    {currentGameData[0][1][0].name} &{" "}
-                    {currentGameData[0][1][1].name}
-                  </span>
-                  <button
-                    onClick={() =>
-                      handleWinnerSelect(
-                        "court1",
-                        currentGameData[0][1][0],
-                        currentGameData[0][1][1]
-                      )
-                    }
-                    className="w-6 h-6 border-2 border-gray-400 rounded-full hover:border-black transition-colors focus:outline-none focus:border-black"
-                  ></button>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-semibold tracking-wider">
+                      {currentGameData[0].team2[0].name} &{" "}
+                      {currentGameData[0].team2[1].name}
+                    </span>
+                    {/*the score input field*/}
+                    <input
+                      type="text"
+                      maxLength={2} // Limit to 2 digits
+                      inputMode="numeric" // Triggers numeric keyboard on mobile
+                      pattern="\d*"
+                      onChange={(e) =>
+                        handleScoreInput(
+                          currentGameData[0],
+                          Number(e.target.value),
+                          2
+                        )
+                      }
+                      className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -190,42 +221,52 @@ const RRGamePage = () => {
             </div>
             <div className="p-6">
               <p className="flex justify-end text-sm text-gray-600 mb-6 tracking-wider">
-                WINNER
+                SCORE
               </p>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-semibold tracking-wider">
-                    {currentGameData[1][0][0].name} &{" "}
-                    {currentGameData[1][0][1].name}
+                    {currentGameData[1].team1[0].name} &{" "}
+                    {currentGameData[1].team1[1].name}
                   </span>
-                  <button
-                    onClick={() =>
-                      handleWinnerSelect(
-                        "court2",
-                        currentGameData[1][0][0],
-                        currentGameData[1][0][1]
+                  {/*the score input field*/}
+                  <input
+                    type="text"
+                    maxLength={2} // Limit to 2 digits
+                    inputMode="numeric" // Triggers numeric keyboard on mobile
+                    pattern="\d*"
+                    onChange={(e) =>
+                      handleScoreInput(
+                        currentGameData[1],
+                        Number(e.target.value),
+                        1
                       )
                     }
-                    className="w-6 h-6 border-2 border-gray-400 rounded-full hover:border-black transition-colors focus:outline-none focus:border-black"
-                  ></button>
+                    className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-semibold tracking-wider">
-                    {currentGameData[1][1][0].name} &{" "}
-                    {currentGameData[1][1][1].name}
+                    {currentGameData[1].team2[0].name} &{" "}
+                    {currentGameData[1].team2[1].name}
                   </span>
-                  <button
-                    onClick={() =>
-                      handleWinnerSelect(
-                        "court2",
-                        currentGameData[1][1][0],
-                        currentGameData[1][1][1]
+                  {/*the score input field*/}
+                  <input
+                    type="text"
+                    maxLength={2} // Limit to 2 digits
+                    inputMode="numeric" // Triggers numeric keyboard on mobile
+                    pattern="\d*"
+                    onChange={(e) =>
+                      handleScoreInput(
+                        currentGameData[1],
+                        Number(e.target.value),
+                        2
                       )
                     }
-                    className="w-6 h-6 border-2 border-gray-400 rounded-full hover:border-black transition-colors focus:outline-none focus:border-black"
-                  ></button>
+                    className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
+                  />
                 </div>
               </div>
             </div>
@@ -234,7 +275,10 @@ const RRGamePage = () => {
 
         {/* End Game Button */}
         <div className="flex justify-end">
-          <button className="flex items-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold tracking-wider hover:bg-gray-800 transition-colors">
+          <button
+            onClick={endGame}
+            className="flex items-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold tracking-wider hover:bg-gray-800 transition-colors"
+          >
             END GAME
             <svg
               width="20"
