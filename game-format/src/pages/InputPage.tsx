@@ -16,6 +16,7 @@ export default function RRInputPage() {
   const [playerFormat, setPlayerFormat] = useState<"single" | "double" | null>(
     null
   );
+  const [playToScore, setPlayToScore] = useState(8);
   // create an array to record players as a "useState" - start with 8 players
   const [players, setPlayers] = useState<string[]>(() => {
     // Check if we're returning from game page with previous players
@@ -43,6 +44,10 @@ export default function RRInputPage() {
     setPlayers(updatedPlayers);
   };
 
+  const selectPlayToScore = (score: number) => {
+    setPlayToScore(score);
+  };
+
   // Function to add a new player
   const addPlayer = () => {
     if (players.length < 14) {
@@ -60,15 +65,17 @@ export default function RRInputPage() {
     }
   };
   const enterGame = () => {
+    const stateToPass = { players, playToScore };
     localStorage.setItem("Players", JSON.stringify(players));
+    localStorage.setItem("playToScore", JSON.stringify(playToScore));
     if (selectedFormat == "round-robin") {
-      navigate("./RRGamePage", { state: players });
+      navigate("./RRGamePage", { state: stateToPass });
     } else if (selectedFormat == "single-knockout") {
-      navigate("./SKGamePage", { state: players });
+      navigate("./SKGamePage", { state: stateToPass });
     } else if (selectedFormat == "open-play") {
-      navigate("./OPGamePage", { state: players });
+      navigate("./OPGamePage", { state: stateToPass });
     } else if (selectedFormat == "king-of-the-court") {
-      navigate("./KOTCGamePage", { state: players });
+      navigate("./KOTCGamePage", { state: stateToPass });
     } else {
       console.log(
         `Unable to enter game due to invalid game format: ${selectedFormat}!`
@@ -112,6 +119,28 @@ export default function RRInputPage() {
             />
             <span className="text-lg">Double</span>
           </label>
+        </div>
+      </section>
+
+      {/* Set Play-to Score */}
+      <section className="mb-8">
+        <h2 className="text-sm font-bold tracking-widest mb-4">
+          SET PLAY-TO SCORE
+        </h2>
+        <div className="flex flex-wrap gap-3">
+          {[8, 11, 15].map((score) => (
+            <button
+              key={score}
+              onClick={() => setPlayToScore(score)}
+              className={`border px-3 py-1 rounded-full text-sm transition-colors ${
+                playToScore === score
+                  ? "border-black bg-black text-white"
+                  : "border-black bg-white text-black hover:bg-gray-100"
+              }`}
+            >
+              {score}
+            </button>
+          ))}
         </div>
       </section>
 
