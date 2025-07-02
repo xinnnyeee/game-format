@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
+import { useNavigate } from "react-router-dom";
+import { Player } from "../utils/RRDoublesGenerator";
 
 interface PlayerResult {
   rank: number;
@@ -8,28 +10,37 @@ interface PlayerResult {
 }
 
 const RRGameSummary: React.FC = () => {
-  // Dummy data matching the image
-  const results: PlayerResult[] = [
-    { rank: 1, name: "ELAINE", score: 85 },
-    { rank: 2, name: "SYLVIA", score: 80 },
-    { rank: 3, name: "LINDA", score: 75 },
-    { rank: 4, name: "HARO'LD", score: 70 },
-    { rank: 5, name: "ROBIN", score: 65 },
-    { rank: 6, name: "NICKI", score: 60 },
-    { rank: 7, name: "JOSHUA", score: 55 },
-    { rank: 8, name: "JESSICA", score: 50 },
-  ];
+  const navigate = useNavigate();
+  const [playerRank, setPlayerRank] = useState<Player[]>([]);
+  useEffect(() => {
+    const storedResults = localStorage.getItem("finalResults");
+    if (storedResults) {
+      try {
+        setPlayerRank(JSON.parse(storedResults));
+      } catch (err) {
+        console.error("Error parsing finalResults:", err);
+      }
+    }
+  });
+
+  const results: PlayerResult[] = playerRank.map((player, index) => ({
+    rank: index + 1,
+    name: player.name,
+    score: player.score,
+  }));
 
   const handleGameSetup = () => {
     console.log("Navigate to Game Setup");
   };
 
   const handleHome = () => {
-    console.log("Navigate to Home");
+    navigate("/");
+    window.location.reload();
   };
 
   const handleNextMatch = () => {
-    console.log("Navigate to Next Match");
+    navigate("/");
+    window.location.reload();
   };
 
   return (
@@ -39,11 +50,10 @@ const RRGameSummary: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                {logo}
-              </div>
+              <img src={logo} alt="Logo" className="w-12 h-12" />
+
               <h1 className="text-2xl font-bold text-gray-900 tracking-wider">
-                ROUND ROBIN
+                ROUND ROBIN RESULTS
               </h1>
             </div>
           </div>

@@ -186,12 +186,7 @@ export function tallyMatchScore(games: Schedule): Player[] {
   return finalPlayerList;
 }
 
-// DEPRECATED - Keep old functions for backwards compatibility but don't use them
-export function addAssignedScore(team: Team, score: number) {
-  console.warn("addAssignedScore is deprecated. Use tallyMatchScore instead.");
-  team[0].score += score;
-  team[1].score += score;
-}
+
 
 export function makeAssignedScore(team: Team, score: number) {
   console.warn("makeAssignedScore is deprecated. Use tallyMatchScore instead.");
@@ -199,66 +194,10 @@ export function makeAssignedScore(team: Team, score: number) {
   team[1].score = score;
 }
 
-// Optional: Helper function to reset all player scores to 0
+//Helper function to reset all player scores to 0
 export function resetPlayerScores(players: Player[]): void {
   players.forEach(player => {
     player.score = 0;
   });
 }
 
-// Optional: Helper function to get player statistics
-export function getPlayerStats(games: Schedule): Map<string, {
-  matchesPlayed: number;
-  totalScore: number;
-  averageScore: number;
-}> {
-  const stats = new Map<string, {
-    matchesPlayed: number;
-    totalScore: number;
-    averageScore: number;
-  }>();
-  
-  for (let i = 0; i < games.length; i++) {
-    const session = games[i];
-    for (let j = 0; j < session.length; j++) {
-      const match: Match = session[j];
-      
-      // Skip BYE matches
-      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
-        continue;
-      }
-      
-      // Update stats for team1 players
-      match.team1.forEach(player => {
-        const currentStats = stats.get(player.name) || {
-          matchesPlayed: 0,
-          totalScore: 0,
-          averageScore: 0
-        };
-        
-        currentStats.matchesPlayed += 1;
-        currentStats.totalScore += match.score1;
-        currentStats.averageScore = currentStats.totalScore / currentStats.matchesPlayed;
-        
-        stats.set(player.name, currentStats);
-      });
-      
-      // Update stats for team2 players
-      match.team2.forEach(player => {
-        const currentStats = stats.get(player.name) || {
-          matchesPlayed: 0,
-          totalScore: 0,
-          averageScore: 0
-        };
-        
-        currentStats.matchesPlayed += 1;
-        currentStats.totalScore += match.score2;
-        currentStats.averageScore = currentStats.totalScore / currentStats.matchesPlayed;
-        
-        stats.set(player.name, currentStats);
-      });
-    }
-  }
-  
-  return stats;
-}

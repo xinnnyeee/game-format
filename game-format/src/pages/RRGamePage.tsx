@@ -72,13 +72,28 @@ const RRGamePage = () => {
 
   // Create games with current scores applied
   const games: Schedule = useMemo(() => {
-    return baseGames.map((session, gameIndex) =>
-      session.map((match, matchIndex) => ({
+    return baseGames.map((session, gameIndex) => {
+      const updatedMatches = session.map((match, matchIndex) => ({
         ...match,
         score1: scores[getScoreKey(gameIndex, matchIndex, 1)] || 0,
         score2: scores[getScoreKey(gameIndex, matchIndex, 2)] || 0,
-      }))
-    );
+      }));
+
+      // Ensure we always return exactly 2 matches for Session type
+      if (updatedMatches.length === 1) {
+        const dummyPlayer: Player = { name: "BYE", score: 0 };
+        const dummyMatch: Match = {
+          id: crypto.randomUUID(),
+          team1: [dummyPlayer, dummyPlayer],
+          team2: [dummyPlayer, dummyPlayer],
+          score1: 0,
+          score2: 0,
+        };
+        return [updatedMatches[0], dummyMatch] as Session;
+      }
+
+      return updatedMatches as Session;
+    });
   }, [baseGames, scores]);
 
   useEffect(() => {
@@ -192,6 +207,25 @@ const RRGamePage = () => {
             </h2>
             <p className="text-sm text-gray-600 mt-1">Play to {playToScore}</p>
           </div>
+
+          <button
+            onClick={currentGame === totalGames ? endGame : handleNextGame}
+            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
+          >
+            {currentGame === totalGames ? "END GAME" : "NEXT GAME"}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="9,18 15,12 9,6" />
+            </svg>
+          </button>
         </div>
 
         {/* Courts */}
@@ -253,26 +287,6 @@ const RRGamePage = () => {
               </div>
             );
           })}
-        </div>
-        <div className="flex justify-end">
-          <button
-            onClick={currentGame === totalGames ? endGame : handleNextGame}
-            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
-          >
-            {currentGame === totalGames ? "END GAME" : "NEXT GAME"}
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import trashIcon from "../assets/trash.png";
 import { useNavigate } from "react-router-dom";
 //import {Player} from "../utils/RRDoublesGenerator";
 
-export default function RRInputPage() {
+export default function InputPage() {
   const location = useLocation(); // needed to pass states around
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   useEffect(() => {
@@ -68,13 +68,13 @@ export default function RRInputPage() {
     const stateToPass = { players, playToScore };
     localStorage.setItem("Players", JSON.stringify(players));
     localStorage.setItem("playToScore", JSON.stringify(playToScore));
-    if (selectedFormat == "round-robin") {
+    if (selectedFormat == "ROUND ROBIN") {
       navigate("./RRGamePage", { state: stateToPass });
-    } else if (selectedFormat == "single-knockout") {
+    } else if (selectedFormat == "SINGLE KNOCKOUT") {
       navigate("./SKGamePage", { state: stateToPass });
-    } else if (selectedFormat == "open-play") {
+    } else if (selectedFormat == "OPEN PLAY") {
       navigate("./OPGamePage", { state: stateToPass });
-    } else if (selectedFormat == "king-of-the-court") {
+    } else if (selectedFormat == "KING OF THE COURT") {
       navigate("./KOTCGamePage", { state: stateToPass });
     } else {
       console.log(
@@ -89,41 +89,14 @@ export default function RRInputPage() {
       <header className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center space-x-2">
           <img src={logo} alt="Logo" className="w-12 h-12" />
-          <h1 className="text-xl font-black tracking-wider">Round Robin</h1>
+          <h1 className="text-xl font-black tracking-wider">
+            {selectedFormat}{" "}
+          </h1>
         </div>
       </header>
 
-      {/* Player Format */}
-      <section className="mt-10">
-        <h2 className="text-sm font-semibold tracking-widest mb-4">
-          PLAYER FORMAT
-        </h2>
-        <div className="flex items-center space-x-6 mb-8">
-          <label className="flex items-center space-x-2">
-            <input
-              type="radio"
-              value="single"
-              checked={playerFormat === "single"}
-              onChange={() => setPlayerFormat("single")}
-              className="accent-black"
-            />
-            <span className="text-lg">Single</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="radio"
-              value="double"
-              checked={playerFormat === "double"}
-              onChange={() => setPlayerFormat("double")}
-              className="accent-black"
-            />
-            <span className="text-lg">Double</span>
-          </label>
-        </div>
-      </section>
-
       {/* Set Play-to Score */}
-      <section className="mb-8">
+      <section className="mt-8 mb-8">
         <h2 className="text-sm font-bold tracking-widest mb-4">
           SET PLAY-TO SCORE
         </h2>
