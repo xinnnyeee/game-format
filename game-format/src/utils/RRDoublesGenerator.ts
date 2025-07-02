@@ -1,215 +1,264 @@
 export type Player = {
-    score: number;
-    name: string;
-  };
-  
-  export type Team = [Player, Player];
-  export type Match = {id : string, team1: Team, team2: Team, score1: number, score2: number};
-  export type Session = [Match, Match];
-  export type Schedule = Session[];
-  
-  export function offset(players: Player[]): void {
-    if (players.length === 0) {
-      console.log("players list empty");
-      return;
+  score: number;
+  name: string;
+};
+
+export type Team = [Player, Player];
+export type Match = {id : string, team1: Team, team2: Team, score1: number, score2: number};
+export type Session = [Match, Match];
+export type Schedule = Session[];
+
+export function offset(players: Player[]): void {
+  if (players.length === 0) {
+    console.log("players list empty");
+    return;
+  }
+  const fixedPlayer = players.shift()!;
+  const last = players.pop();
+  if (last !== undefined && fixedPlayer !== undefined) {
+    players.unshift(last);
+    players.unshift(fixedPlayer);
+  }
+}
+
+export function generateMatchesPerRound(numOfPlayers: number): number {
+  if (numOfPlayers >= 8 && numOfPlayers <= 14) {
+    return Math.floor(numOfPlayers / 4);
+  } else {
+    return -1;
+  }
+}
+
+export function generateRRMatches(players: Player[]): Schedule {
+  if (players.length < 8 || players.length > 14) {
+    console.log("Invalid number of players, must be kept between 8 and 14");
+    return [];
+  }
+  return generateDoubleMatchesFromPlayers(players);
+}
+
+export function generateDoubleMatchesFromPlayers(players: Player[]): Schedule {
+  const numOfRounds = players.length - 1;
+  const allMatches: Match[] = [];
+  const numOfMatchesPerRound = generateMatchesPerRound(players.length);
+  const offsets = players.length % 4;
+
+  for (let i = 0; i < numOfRounds; i++) {
+    offset(players);
+    const validPlayers = offsets === 0 ? [...players] : players.slice(0, -offsets); // sit out some players
+    const newMatches = generateMatchesFromPlayers(validPlayers);
+    allMatches.push(...newMatches);
+  }
+
+  return generateSessionsFromMatches(allMatches, numOfMatchesPerRound);
+}
+
+// turns 12 34 56 78 into 2 matches 
+export function generateMatchesFromPlayers(players: Player[]): Match[] {
+  if (players.length % 4 !== 0) {
+    console.log("invalid number of players");
+    return [];
+  }
+
+  const queue = [...players];
+  const teamList: Team[] = [];
+
+  while (queue.length >= 2) {
+    const p1 = queue.shift()!;
+    const p2 = queue.shift()!;
+    teamList.push([p1, p2]);
+  }
+
+  const matchList: Match[] = [];
+  while (teamList.length >= 2) {
+    const t1 = teamList.shift()!;
+    const t2 = teamList.shift()!;
+    const match : Match = {
+      id:crypto.randomUUID(), 
+      team1: t1, 
+      team2: t2, 
+      score1: 0, 
+      score2: 0
     }
-    const fixedPlayer = players.shift()!;
-    const last = players.pop();
-    if (last !== undefined && fixedPlayer !== undefined) {
-      players.unshift(last);
-      players.unshift(fixedPlayer);
+    matchList.push(match);
+  }
+
+  return matchList;
+}
+
+export function generateSessionsFromMatches(matches: Match[], numOfMatchesPerRound: number): Session[] {
+  const sessList: Session[] = [];
+  const dummyPlayer: Player = { name: "BYE", score: 0 };
+  const dummyMatch: Match = {id: crypto.randomUUID(), team1: [dummyPlayer, dummyPlayer], team2: [dummyPlayer, dummyPlayer], score1: 0, score2: 0};
+
+  if (numOfMatchesPerRound === 2) {
+    while (matches.length >= 2) {
+      const sess: Session = [matches.shift()!, matches.shift()!];
+      sessList.push(sess);
+    }
+    if (matches.length === 1) {
+      sessList.push([matches.pop()!, dummyMatch]);
+    }
+  } else if (numOfMatchesPerRound === 3) {
+    let j = 0;
+    while (j + 6 <= matches.length) {
+      sessList.push([matches[j], matches[j + 1]]);
+      sessList.push([matches[j + 2], matches[j + 4]]);
+      sessList.push([matches[j + 3], matches[j + 5]]);
+      j += 6;
+    }
+    if (matches.length - j === 3) {
+      sessList.push([matches[j], matches[j + 1]]);
+      sessList.push([matches[j + 2], dummyMatch]);
     }
   }
+
+  return sessList;
+}
+
+// FIXED VERSION - Properly handles player deduplication and score accumulation
+export function tallyMatchScore(games: Schedule): Player[] {
+  // Use a Map to track unique players and their accumulated match scores
+  const playerMatchScores = new Map<string, number>();
   
-  export function generateMatchesPerRound(numOfPlayers: number): number {
-    if (numOfPlayers >= 8 && numOfPlayers <= 14) {
-      return Math.floor(numOfPlayers / 4);
-    } else {
-      return -1;
-    }
-  }
-  
-  export function generateRRMatches(players: Player[]): Schedule {
-    if (players.length < 8 || players.length > 14) {
-      console.log("Invalid number of players, must be kept between 8 and 14");
-      return [];
-    }
-    return generateDoubleMatchesFromPlayers(players);
-  }
-  
-  export function generateDoubleMatchesFromPlayers(players: Player[]): Schedule {
-    const numOfRounds = players.length - 1;
-    const playersCopy = [...players];
-    const allMatches: Match[] = [];
-    const numOfMatchesPerRound = generateMatchesPerRound(players.length);
-    const offsets = players.length % 4;
-  
-    for (let i = 0; i < numOfRounds; i++) {
-      offset(playersCopy);
-      const validPlayers = offsets === 0 ? [...playersCopy] : playersCopy.slice(0, -offsets); // sit out some players
-      const newMatches = generateMatchesFromPlayers(validPlayers);
-      allMatches.push(...newMatches);
-    }
-  
-    return generateSessionsFromMatches(allMatches, numOfMatchesPerRound);
-  }
-  
-  // turns 12 34 56 78 into 2 matches 
-  export function generateMatchesFromPlayers(players: Player[]): Match[] {
-    if (players.length % 4 !== 0) {
-      console.log("invalid number of players");
-      return [];
-    }
-  
-    const queue = [...players];
-    const teamList: Team[] = [];
-  
-    while (queue.length >= 2) {
-      const p1 = queue.shift()!;
-      const p2 = queue.shift()!;
-      teamList.push([p1, p2]);
-    }
-  
-    const matchList: Match[] = [];
-    while (teamList.length >= 2) {
-      const t1 = teamList.shift()!;
-      const t2 = teamList.shift()!;
-      const match : Match = {
-        id:crypto.randomUUID(), 
-        team1: t1, 
-        team2: t2, 
-        score1: 0, 
-        score2: 0
+  // First, accumulate all match scores for each player
+  for (let i = 0; i < games.length; i++) {
+    const session = games[i];
+    for (let j = 0; j < session.length; j++) {
+      const match: Match = session[j];
+      
+      // Skip BYE matches
+      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
+        continue;
       }
-      matchList.push(match);
-    }
-  
-    return matchList;
-  }
-  
-  export function generateSessionsFromMatches(matches: Match[], numOfMatchesPerRound: number): Session[] {
-    const sessList: Session[] = [];
-    const matchesCopy = [...matches];
-    const dummyPlayer: Player = { name: "BYE", score: 0 };
-    const dummyMatch: Match = {id: crypto.randomUUID(), team1: [dummyPlayer, dummyPlayer], team2: [dummyPlayer, dummyPlayer], score1: 0, score2: 0};
-  
-    if (numOfMatchesPerRound === 2) {
-      while (matchesCopy.length >= 2) {
-        const sess: Session = [matchesCopy.shift()!, matchesCopy.shift()!];
-        sessList.push(sess);
-      }
-      if (matchesCopy.length === 1) {
-        sessList.push([matchesCopy.pop()!, dummyMatch]);
-      }
-    } else if (numOfMatchesPerRound === 3) {
-      let j = 0;
-      while (j + 6 <= matches.length) {
-        sessList.push([matches[j], matches[j + 1]]);
-        sessList.push([matches[j + 2], matches[j + 4]]);
-        sessList.push([matches[j + 3], matches[j + 5]]);
-        j += 6;
-      }
-      if (matches.length - j === 3) {
-        sessList.push([matches[j], matches[j + 1]]);
-        sessList.push([matches[j + 2], dummyMatch]);
-      }
-    }
-  
-    return sessList;
-  }
-
-  export function tallyMatchScore( games : Schedule) {
-    // distribute the score of matches to its players
-    for (let i = 0; i < games.length; i++) {
-      const sess = games[i];
-      for (let j = 0; j < sess.length; j++) {
-        // take the score on each match, score 1 => team 1, score 2 => team 2
-        const match : Match = sess[j];
-        addAssignedScore(match.team1, match.score1);
-        addAssignedScore(match.team2, match.score2);
-      }
+      
+      // Add match scores for team1 players
+      match.team1.forEach(player => {
+        const currentScore = playerMatchScores.get(player.name) || 0;
+        playerMatchScores.set(player.name, currentScore + match.score1);
+      });
+      
+      // Add match scores for team2 players
+      match.team2.forEach(player => {
+        const currentScore = playerMatchScores.get(player.name) || 0;
+        playerMatchScores.set(player.name, currentScore + match.score2);
+      });
     }
   }
-
-  export function addAssignedScore(team: Team, score: number) {
-    team[0].score += score;
-    team[1].score += score;
-  }
-
-  export function makeAssignedScore(team: Team, score: number) {
-    team[0].score = score;
-    team[1].score = score;
+  
+  // Create a set of unique players from the first occurrence in matches
+  const uniquePlayers = new Map<string, Player>();
+  
+  for (let i = 0; i < games.length; i++) {
+    const session = games[i];
+    for (let j = 0; j < session.length; j++) {
+      const match: Match = session[j];
+      
+      // Skip BYE matches
+      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
+        continue;
+      }
+      
+      // Collect unique players (using first occurrence)
+      match.team1.forEach(player => {
+        if (!uniquePlayers.has(player.name)) {
+          uniquePlayers.set(player.name, { ...player });
+        }
+      });
+      
+      match.team2.forEach(player => {
+        if (!uniquePlayers.has(player.name)) {
+          uniquePlayers.set(player.name, { ...player });
+        }
+      });
+    }
   }
   
+  // Create final player list with accumulated scores
+  const finalPlayerList: Player[] = Array.from(uniquePlayers.values()).map(player => ({
+    name: player.name,
+    score: (player.score || 0) + (playerMatchScores.get(player.name) || 0)
+  }));
+  
+  // Sort by total score (highest first)
+  finalPlayerList.sort((a, b) => b.score - a.score);
+  
+  return finalPlayerList;
+}
 
+// DEPRECATED - Keep old functions for backwards compatibility but don't use them
+export function addAssignedScore(team: Team, score: number) {
+  console.warn("addAssignedScore is deprecated. Use tallyMatchScore instead.");
+  team[0].score += score;
+  team[1].score += score;
+}
 
-    // list out all the possibilities for 8 players
-    // 12 34 56 78 
-    // 13 45 67 82
-    // 14 56 78 23
-    // 15 67 82 34
-    // 16 78 23 45
-    // 17 82 34 56
-    // 18 23 45 67
+export function makeAssignedScore(team: Team, score: number) {
+  console.warn("makeAssignedScore is deprecated. Use tallyMatchScore instead.");
+  team[0].score = score;
+  team[1].score = score;
+}
 
-    // 9 players
-    // add one BYE player
-    // whoever paired with BYE will sit out
-    // 12 34 56 78 9B
-    // 1B 23 45 67 89
-    // 19 B2 34 56 78
-    // 18 9B 23 45 67
-    // 17 89 B2 34 56
-    // 16 78 9B 23 45
-    // 15 67 89 B2 34
-    // 14 56 78 9B 23
-    // 13 45 67 89 B2
+// Optional: Helper function to reset all player scores to 0
+export function resetPlayerScores(players: Player[]): void {
+  players.forEach(player => {
+    player.score = 0;
+  });
+}
 
-
-    // 9 players alternative
-    // exclude one player each round
-
-    // 10 players
-    // add BB, and whoever match with BB will sit out 
-    // two players will sit out each round
-
-    // 11 players
-    // add B, whoever pair or match with B will sit out
-    // 3players will sit out each round
-
-    // list out all the possibilities for 12 players
-    // ab cd ef gh ij kl
-    // al bc de fg hi jk
-    // ak lb cd ef gh ij 
-    // aj kl bc de fg hi
-    // ai jk lb cd ef gh
-    // ah ij kl bc de fg 
-    // ag hi jk lb cd ef 
-    // af gh ij kl bc de 
-    // ae fg hi jk lb cd
-    // ad ef gh ij kl bc
-    // ac de fg hi jk lb
-
-    // sessions (first 4 rows)
-    // ab cd & ef gh
-    // ij kl & de fg
-    // al bc & hi jk
-    // ak lb & cd ef
-    // gh ij & bc de
-    // aj kl & fg hi
-    // algo: take the n and n+2 index to pair into session, take until the N-2 
-
-    // 13 players
-    // add one B
-    // whoever pair with B will sit out
-    // the rest player like 12 players matches
-
-    // 14 players
-    // add two B
-    // the team matching with BB will sit out
-    // the rest play like 12 players matches
-
-
-
-
-
+// Optional: Helper function to get player statistics
+export function getPlayerStats(games: Schedule): Map<string, {
+  matchesPlayed: number;
+  totalScore: number;
+  averageScore: number;
+}> {
+  const stats = new Map<string, {
+    matchesPlayed: number;
+    totalScore: number;
+    averageScore: number;
+  }>();
+  
+  for (let i = 0; i < games.length; i++) {
+    const session = games[i];
+    for (let j = 0; j < session.length; j++) {
+      const match: Match = session[j];
+      
+      // Skip BYE matches
+      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
+        continue;
+      }
+      
+      // Update stats for team1 players
+      match.team1.forEach(player => {
+        const currentStats = stats.get(player.name) || {
+          matchesPlayed: 0,
+          totalScore: 0,
+          averageScore: 0
+        };
+        
+        currentStats.matchesPlayed += 1;
+        currentStats.totalScore += match.score1;
+        currentStats.averageScore = currentStats.totalScore / currentStats.matchesPlayed;
+        
+        stats.set(player.name, currentStats);
+      });
+      
+      // Update stats for team2 players
+      match.team2.forEach(player => {
+        const currentStats = stats.get(player.name) || {
+          matchesPlayed: 0,
+          totalScore: 0,
+          averageScore: 0
+        };
+        
+        currentStats.matchesPlayed += 1;
+        currentStats.totalScore += match.score2;
+        currentStats.averageScore = currentStats.totalScore / currentStats.matchesPlayed;
+        
+        stats.set(player.name, currentStats);
+      });
+    }
+  }
+  
+  return stats;
+}

@@ -1,6 +1,6 @@
 import logo from "../assets/logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   generateDoubleMatchesFromPlayers,
   tallyMatchScore,
@@ -65,6 +65,22 @@ const RRGamePage = () => {
     return 8;
   });
 
+  // Generate games only once and memoize
+  const baseGames: Schedule = useMemo(() => {
+    return generateDoubleMatchesFromPlayers(players);
+  }, [players]);
+
+  // Create games with current scores applied
+  const games: Schedule = useMemo(() => {
+    return baseGames.map((session, gameIndex) =>
+      session.map((match, matchIndex) => ({
+        ...match,
+        score1: scores[getScoreKey(gameIndex, matchIndex, 1)] || 0,
+        score2: scores[getScoreKey(gameIndex, matchIndex, 2)] || 0,
+      }))
+    );
+  }, [baseGames, scores]);
+
   useEffect(() => {
     if (!players || players.length === 0) {
       navigate("./InputPage", { replace: true });
@@ -73,7 +89,6 @@ const RRGamePage = () => {
 
   if (!players || players.length === 0) return null;
 
-  const games: Schedule = generateDoubleMatchesFromPlayers(players);
   const totalGames = games.length;
   const currentGameData = games[currentGame - 1] || games[0];
   const progressPercentage = (currentGame / totalGames) * 100;
@@ -101,6 +116,7 @@ const RRGamePage = () => {
     score: number,
     team: number
   ) => {
+    // Validate score first
     if (score > playToScore) {
       console.log(
         `Invalid score: ${score} is greater than maximum ${playToScore}`
@@ -108,21 +124,24 @@ const RRGamePage = () => {
       return;
     }
 
+    // Only update React state - don't mutate games array directly
     const key = getScoreKey(gameIndex, matchIndex, team);
     setScores((prev) => ({
       ...prev,
       [key]: score,
     }));
-
-    const match = games[gameIndex][matchIndex];
-    if (team === 1) match.score1 = score;
-    else if (team === 2) match.score2 = score;
   };
 
   const endGame = () => {
-    tallyMatchScore(games);
-    console.log("Final scores:", games);
-    // navigate("/ResultsPage"); // Add if needed
+    // Use the games array with applied scores for final tally
+    const playerRanks: Player[] = tallyMatchScore(games);
+    console.log("Final scores:", playerRanks);
+
+    // Store final results for the summary page
+    localStorage.setItem("finalResults", JSON.stringify(playerRanks));
+    localStorage.setItem("finalGames", JSON.stringify(games));
+
+    navigate("./RRGameSummary");
   };
 
   return (
@@ -173,26 +192,6 @@ const RRGamePage = () => {
             </h2>
             <p className="text-sm text-gray-600 mt-1">Play to {playToScore}</p>
           </div>
-
-          <button
-            onClick={handleNextGame}
-            disabled={currentGame === totalGames}
-            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            NEXT GAME
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-          </button>
         </div>
 
         {/* Courts */}
@@ -233,14 +232,18 @@ const RRGamePage = () => {
                               getScoreKey(currentGame - 1, matchIndex, team)
                             ] ?? ""
                           }
-                          onChange={(e) =>
-                            handleScoreInput(
-                              currentGame - 1,
-                              matchIndex,
-                              Number(e.target.value),
-                              team
-                            )
-                          }
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            // Only allow numeric input
+                            if (value === "" || /^\d+$/.test(value)) {
+                              handleScoreInput(
+                                currentGame - 1,
+                                matchIndex,
+                                value === "" ? 0 : Number(value),
+                                team
+                              );
+                            }
+                          }}
                           className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
                         />
                       </div>
@@ -251,14 +254,12 @@ const RRGamePage = () => {
             );
           })}
         </div>
-
-        {/* End Game Button */}
         <div className="flex justify-end">
           <button
-            onClick={endGame}
-            className="flex items-center gap-2 px-8 py-4 bg-black text-white rounded-lg font-semibold tracking-wider hover:bg-gray-800 transition-colors"
+            onClick={currentGame === totalGames ? endGame : handleNextGame}
+            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
           >
-            END GAME
+            {currentGame === totalGames ? "END GAME" : "NEXT GAME"}
             <svg
               width="20"
               height="20"
