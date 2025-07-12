@@ -1,114 +1,397 @@
-import { CookieSignatureOptions } from "react-router-dom";
-export interface TournamentState {
-  currentRound: number;
-  pendingMatches: Match[];
-  completedMatches: Match[];
-  advancingPlayers?: Player[];
-  advancingTeams?: Team[];
+// Types
+export interface Player {
+  name: string; // acts as ID
+  score: number;
 }
 
-export interface BaseMatch {
-  id: string
-}
-
-// logic for deciding the fields of each type: leaderboard
-// two leaderboards: individual and team
-// individual: includes everyone, based on the individual scores ever got
-// team: includes only those made it past round 0, based on the algorithm
-export type Player = {id: string, name: string, score: number};
-export type Team = {id: string, player1: Player, player2: Player};
-export interface SingleMatch extends BaseMatch {
-  type: 'single';
+export interface Team {
+  id: string; // player1's name-player2's name
+  rank: number; // initialised to 4
   player1: Player;
   player2: Player;
-  winner?: Player;
 }
 
-export interface DoubleMatch extends BaseMatch {
-  type: 'double';
-  team1: Team;
-  team2: Team;
-  winner?: Team;
+export interface Match {
+  type: 'single' | 'double';
+  party1?: Player | Team;
+  party2?: Player | Team;
+  score1?: number;
+  score2?: number;
+  winner?: Player | Team;
+  court?: 1 | 2; // Add court assignment
 }
-type Match = SingleMatch | DoubleMatch; 
 
-// only needed to run for (numOfPlayers !== 8)
-// input: all players
-// output: Teams going
-export function generateRound0Matches(players : Player[]) : TournamentState {
-  // round 0 :
-  // randomise the queue
-  const randomPlayers : Player[] = [...players].sort(() => Math.random() - 0.5);
-  // generate number of play-ins
-  const playInMatch : number = players.length % 8;
-  const matchQueue : SingleMatch[] = [];
-  for (let i = 0; i < playInMatch; i++) {
-    // create one single match involving any two random players
-    const p1 : Player = randomPlayers.shift()!;
-    const p2 : Player = randomPlayers.shift()!;
-    const singleMatch : SingleMatch = {id: `r0-m${i}`, type: 'single', player1: p1, player2: p2, winner: undefined};
-    // put the single match in a match queue
-    matchQueue.push(singleMatch);
+export interface TournamentState {
+  pendingMatches: Match[];
+  finishedMatches: Match[];
+  currentMatches: Match[]; // Changed from currentMatch to currentMatches array
+  participatingPlayers?: Player[];
+  participatingTeams?: Team[];
+}
+
+/**
+ * Calculate how many play-in matches are needed based on the number of players
+ */
+function calculatePlayInMatches(numPlayers: number): number {
+  if (numPlayers <= 8) return 0;
+  return numPlayers - 8;
+}
+
+/**
+ * Generate all the play-in matches with filled players
+ */
+function generatePlayInMatches(players: Player[]): Match[] {
+  const playInMatches: Match[] = [];
+  const numPlayIn = calculatePlayInMatches(players.length);
+  
+  for (let i = 0; i < numPlayIn; i++) {
+    playInMatches.push({
+      type: 'single',
+      party1: players[i * 2],
+      party2: players[i * 2 + 1]
+    });
   }
-  // put the leftover players into the queue for round1
-  const round1Players : Player[] = [...randomPlayers];
-  const round0 : TournamentState = {currentRound: 0, pendingMatches: matchQueue, completedMatches: [], advancingPlayers: round1Players}; 
-  return round0;
+  
+  return playInMatches;
 }
 
-// input: assume that advanced players/teams are already even in number
-// after each round, run this to generate the next round
-export function advanceTournament(currentState : TournamentState) : TournamentState {
-  // read the winners from existing round's matches
-  if (currentState.advancingPlayers) { 
-    // convert the players into teams
-    const currentTeams : Team[] = pairPlayersUp(currentState.advancingPlayers);
-  } if (currentState.advancingTeams) {
-    const currentTeams : Team[] = currentState.advancingTeams;
+/**
+ * Generate bracket 1 matches from available players. This function empties the array of players. 
+ */
+function generateBracket1Matches(players: Player[]): Match[] {
+  const bracketMatches: Match[] = [];
+
+  if (players.length !== 8) {
+    console.log("Incorrect number of valid players for bracket generation:", players.length);
+    return bracketMatches;
+  }
+  
+  // 2 bracket1 matches are created
+  for (let i = 0; i < 2; i++) {
+    bracketMatches.push({
+      type: 'double' as const,
+      party1: createTeam(players.shift()!, players.shift()!),
+      party2: createTeam(players.shift()!, players.shift()!)
+    });
+  }
+  
+  return bracketMatches;
+}
+
+/**
+ * Create teams from players
+ */
+function createTeam(player1: Player, player2: Player): Team {
+  return {
+    id: `${player1.name}-${player2.name}`,
+    rank: 4, // initialised to 4
+    player1,
+    player2
+  };
+}
+
+/**
+ * Check if we can form teams and generate bracket matches
+ */
+function trygenerateBracket1Matches(state: TournamentState): TournamentState {
+  if (!state.participatingPlayers || state.participatingPlayers.length < 8) {
+    return state;
+  }
+  
+  // Don't generate if we already have teams
+  if (state.participatingTeams && state.participatingTeams.length > 0) {
+    return state;
+  }
+  
+  const newState = { ...state };
+  
+  // Create teams for bracket 1, and add them to participatingPlayers
+  const teams: Team[] = [];
+  for (let i = 0; i < 4; i++) {
+    teams.push(createTeam(
+      newState.participatingPlayers![i * 2], 
+      newState.participatingPlayers![i * 2 + 1]
+    ));
+  }
+  
+  newState.participatingTeams = teams;
+  
+  // Generate bracket 1 matches
+  const bracketMatches = generateBracket1Matches(newState.participatingPlayers!);
+  
+  // Add teams to the bracket matches
+  for (let i = 0; i < bracketMatches.length; i++) {
+    bracketMatches[i].party1 = teams[i * 2];
+    bracketMatches[i].party2 = teams[i * 2 + 1];
+  }
+  // push bracket 1 matches to pending matches
+  newState.pendingMatches.push(...bracketMatches);
+  
+  return newState;
+}
+
+/**
+ * Check if a match can start (both parties are available)
+ */
+function canMatchStart(match: Match, currentMatches: Match[]): boolean {
+  console.log(`Checking if match can start: ${match.party1} vs ${match.party2}`);
+  
+  if (!match.party1 || !match.party2) {
+    console.log('Match missing parties:', { party1: match.party1, party2: match.party2 });
+    return false;
+  }
+  
+  console.log('Current matches in progress:', currentMatches.map(m => `${m.party1} vs ${m.party2}`));
+  
+  // Check if any party is already in a current match
+  for (const currentMatch of currentMatches) {
+    if (currentMatch.party1 === match.party1 || 
+        currentMatch.party1 === match.party2 ||
+        currentMatch.party2 === match.party1 || 
+        currentMatch.party2 === match.party2) {
+      console.log('Direct party conflict found');
+      return false;
     }
-
-  // add them to the advancing players
-  // generate new matches based on advancing players/teams (doubles, convert to team)
+    
+    // For team matches, check individual players
+    if (currentMatch.type === 'double' && match.type === 'double') {
+      const currentTeam1 = currentMatch.party1 as Team;
+      const currentTeam2 = currentMatch.party2 as Team;
+      const matchTeam1 = match.party1 as Team;
+      const matchTeam2 = match.party2 as Team;
+      
+      if (currentTeam1 && currentTeam2 && matchTeam1 && matchTeam2) {
+        const currentPlayers = [
+          currentTeam1.player1.name, currentTeam1.player2.name,
+          currentTeam2.player1.name, currentTeam2.player2.name
+        ];
+        const matchPlayers = [
+          matchTeam1.player1.name, matchTeam1.player2.name,
+          matchTeam2.player1.name, matchTeam2.player2.name
+        ];
+        
+        console.log('Current players:', currentPlayers);
+        console.log('Match players:', matchPlayers);
+        
+        // Check if any player is in both matches
+        const hasOverlap = currentPlayers.some(player => matchPlayers.includes(player));
+        if (hasOverlap) {
+          console.log('Player overlap found between matches');
+          return false;
+        }
+      }
+    }
+  }
+  
+  console.log('Match can start - no conflicts found');
+  return true;
 }
 
-export function pairPlayersUp(players : Player[]) : Team[] {
-  const teamList : Team[] = [];
-  if (!players) {
-    console.log(`no players to pair up`);
-    return [];
-  } 
-  if (players.length % 2 !== 0) {
-    console.log(`players number is odd, cannot pair up`);
-    return [];
+/**
+ * Initialize matches
+ * Input: all players
+ * Output: tournament state with pending matches filled with play-in matches, 
+ * and participating players pre-entered with byed players
+ */
+export function initialiseMatches(players: Player[]): TournamentState {
+  const numPlayers = players.length;
+  const numPlayIn = calculatePlayInMatches(numPlayers);
+  
+  // Generate play-in matches
+  const playInMatches = generatePlayInMatches(players);
+  
+  // Pre-place byed players (players who skip play-in)
+  const byedPlayers = players.slice(numPlayIn * 2); // duplicate the list for 8 players
+  
+  let initialState: TournamentState = {
+    pendingMatches: [...playInMatches],
+    finishedMatches: [],
+    currentMatches: [],
+    participatingPlayers: [...byedPlayers],
+    participatingTeams: []
+  };
+  
+  // If we have exactly 8 players, generate bracket matches immediately
+  if (numPlayers === 8) {
+    initialState = trygenerateBracket1Matches(initialState);
   }
-  while (players.length >= 2) {
-    const p1 : Player = players.shift()!;
-    const p2 : Player = players.shift()!;
-    const newTeam : Team = {id: `team-${p1.name}-${p2.name}`, player1: p1, player2: p2};
-    teamList.push(newTeam);
-  }
-  return teamList;
+  
+  return initialState;
 }
-// central design: 
-// players entering the next bracket are put into a queue
 
-// 8 players
-// first bracket: 12 vs 34 (w), 56 vs 78 (w) -> only this can be generated
-// second bracket: 34 vs 78(w), 12 vs 56(w)
-// ranking: 78, 34, 56, 12
+/**
+ * Start available matches on courts
+ * Pre-condition: less than 2 matches currently in progress
+ * Input: current tournament state
+ * Output: tournament state with matches started on available courts
+ */
+export function startAvailableMatches(state: TournamentState): TournamentState {
+  let newState = { ...state };
+  
+  // Try to generate bracket matches if we have enough players
+  newState = trygenerateBracket1Matches(newState);
+  
+  const availableCourts = [1, 2].filter(court => 
+    !newState.currentMatches.some(match => match.court === court)
+  );
+  
+  console.log('Available courts:', availableCourts);
+  console.log('Pending matches:', newState.pendingMatches);
+  console.log('Current matches:', newState.currentMatches);
+  
+  // Start matches on available courts
+  for (const court of availableCourts) {
+    if (newState.pendingMatches.length === 0) {
+      console.log('No pending matches, breaking');
+      break;
+    }
+    
+    // Find the next available match (one where both parties are defined and no conflicts)
+    const nextMatchIndex = newState.pendingMatches.findIndex( // find the index of the match that can start
+      (match) => {
+        const canStart = canMatchStart(match, newState.currentMatches);
+        console.log(`Checking match ${match.party1} vs ${match.party2}:`, {
+          party1: match.party1,
+          party2: match.party2,
+          canStart: canStart
+        });
+        return canStart;
+      }
+    );
+    
+    console.log('Next match index:', nextMatchIndex);
+    
+    if (nextMatchIndex === -1) {
+      console.log('No available matches found, breaking');
+      break;
+    }
+    
+    const nextMatch = newState.pendingMatches[nextMatchIndex];
+    nextMatch.court = court as 1 | 2;
+    
+    console.log(`Starting match on court ${court}:`, nextMatch);
+    
+    // Remove from pending and add to current
+    newState.pendingMatches.splice(nextMatchIndex, 1);
+    newState.currentMatches.push(nextMatch);
+  }
+  
+  console.log('Final state:', {
+    pendingMatches: newState.pendingMatches,
+    currentMatches: newState.currentMatches
+  });
+  
+  return newState;
+}
 
-// 9 players
-// single: 8 vs 9(w) -> first thing to do
-// first bracket: 12 vs 34 (group as one session with the single) -> random generated excluding 8 and 9
+/**
+ * Advance specific match
+ * Pre-condition: match is in currentMatches and has scores
+ * Input: current tournament state and match to advance
+ * Output: next tournament state with match completed
+ */
+export function advanceMatch(state: TournamentState, matchToAdvance: Match): TournamentState {
+  const matchIndex = state.currentMatches.findIndex(match => match === matchToAdvance);
+  if (matchIndex === -1) {
+    throw new Error('Match not found in current matches');
+  }
+  
+  const currentMatch = matchToAdvance;
+  let newState : TournamentState = {
+    ...state
+  };
+  
+  // Update and compare scores to determine winner
+  if (currentMatch.score1 !== undefined && currentMatch.score2 !== undefined) {
+    if (currentMatch.score1 > currentMatch.score2) {
+      currentMatch.winner = currentMatch.party1;
+    } else if (currentMatch.score2 > currentMatch.score1) {
+      currentMatch.winner = currentMatch.party2;
+    } else {
+      throw new Error('Match cannot end in a tie');
+    }
+  }
+  
+  // Handle single matches: 
+  // add the winner to the participating players
+  if (currentMatch.type === 'single') {
+    const winner = currentMatch.winner as Player;
+    
+    // Add winner to participating players pool
+    if (!newState.participatingPlayers?.includes(winner)) {
+      newState.participatingPlayers?.push(winner);
+    }
+  }
+  
+  // Handle double matches
+  if (currentMatch.type === 'double') {
+    const winningTeam = currentMatch.winner as Team;
+    winningTeam.rank -= 1;
+  }
+  
+  // Move current match to finished matches
+  newState.finishedMatches.push(currentMatch);
+  
+  // Remove from current matches
+  newState.currentMatches = newState.currentMatches.filter(match => match !== matchToAdvance);
+  
+  // Try to generate bracket matches if we now have enough players
+  newState = trygenerateBracket1Matches(newState);
+  
+  // Check if we need to generate bracket 2
+  const rankSum = newState.participatingTeams?.reduce((acc, t) => acc + t.rank, 0);
+  if (newState.pendingMatches.length == 0 && rankSum == 14) {
+    // Generate bracket 2
+    // Sort teamlist by rank (highest rank first for winner/loser bracket)
+    newState.participatingTeams?.sort((a, b) => a.rank - b.rank);
+    
+    // Generate two matches (winner match & loser match)    
+    const winnerMatch = {type: 'double' as const, 
+      party1: newState.participatingTeams![0],
+      party2: newState.participatingTeams![1],
+    }
+    // decrease rank for the winnerMatch 
+    setWinnerMatchRank(winnerMatch);
+    const loserMatch = {type: 'double' as const, 
+      party1: newState.participatingTeams![2],
+      party2: newState.participatingTeams![3],
+    }
+    // Add bracket 2 matches to pending matches first
+    newState.pendingMatches.push(winnerMatch, loserMatch);
+      
+      // Then immediately start them since all bracket 1 matches are done
+      
+    }
+    newState = startAvailableMatches(newState);
+    return newState;
+  }
+  
+  
+// reset winner match rank
+export function setWinnerMatchRank(match : Match) {
+  const team1 : Team = match.party1 as Team;
+  const team2 : Team = match.party2 as Team;
+  team1.rank = 2;
+  team2.rank = 2;
+}
 
-// 10 players
-// 2 play-in matches: 7 vs 8 (w) and 9 vs 10 (w) -> randomly generate the play-in matches, and pair the rest up
-// first bracket : 8 10 vs 5 6, 12 vs 34
 
-// 11 players
-// 3 play-in matches : 6 vs 7, 8 vs 9, 10 vs 11 
+/**
+ * Get ranking map of teams
+ */
+export function getRankingMap(teams: Team[]): Map<number, Team> {
+  const rankingMap = new Map<number, Team>();
+  
+  teams.forEach(team => {
+    rankingMap.set(team.rank, team);
+  });
+  
+  return rankingMap;
+}
 
-// 12 players
-// 2 play-in matches : 56 vs 78, 9 10 vs 11 12
-
-// 13 players
+/**
+ * Sort teams by rank
+ */
+export function sortTeamsByRank(teams: Team[]): Team[] {
+  return [...teams].sort((a, b) => a.rank - b.rank);
+}

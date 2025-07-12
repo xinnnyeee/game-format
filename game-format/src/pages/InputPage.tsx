@@ -13,9 +13,6 @@ export default function InputPage() {
     console.log(`${storedFormat}`);
     setSelectedFormat(storedFormat);
   }, []);
-  const [playerFormat, setPlayerFormat] = useState<"single" | "double" | null>(
-    null
-  );
   const [playToScore, setPlayToScore] = useState(8);
   // create an array to record players as a "useState" - start with 8 players
   const [players, setPlayers] = useState<string[]>(() => {
@@ -64,6 +61,12 @@ export default function InputPage() {
       setPlayers(updatedPlayers);
     }
   };
+
+  const handleHome = () => {
+    navigate("/");
+    window.location.reload();
+  };
+
   const enterGame = () => {
     const stateToPass = { players, playToScore };
     localStorage.setItem("Players", JSON.stringify(players));
@@ -88,7 +91,12 @@ export default function InputPage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b pb-3">
         <div className="flex items-center space-x-2">
-          <img src={logo} alt="Logo" className="w-12 h-12" />
+          <img
+            onClick={handleHome}
+            src={logo}
+            alt="Logo"
+            className="w-12 h-12"
+          />
           <h1 className="text-xl font-black tracking-wider">
             {selectedFormat}{" "}
           </h1>

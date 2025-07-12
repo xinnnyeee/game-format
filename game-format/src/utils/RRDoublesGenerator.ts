@@ -116,7 +116,6 @@ export function generateSessionsFromMatches(matches: Match[], numOfMatchesPerRou
   return sessList;
 }
 
-// FIXED VERSION - Properly handles player deduplication and score accumulation
 export function tallyMatchScore(games: Schedule): Player[] {
   // Use a Map to track unique players and their accumulated match scores
   const playerMatchScores = new Map<string, number>();
@@ -132,7 +131,8 @@ export function tallyMatchScore(games: Schedule): Player[] {
         continue;
       }
       
-      // Add match scores for team1 players
+      // Add match scores for team1 players 
+      // Assumption: player name is unique
       match.team1.forEach(player => {
         const currentScore = playerMatchScores.get(player.name) || 0;
         playerMatchScores.set(player.name, currentScore + match.score1);

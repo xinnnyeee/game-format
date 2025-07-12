@@ -20,9 +20,12 @@ const RRGamePage = () => {
 
   const [scores, setScores] = useState<{ [key: string]: number }>({});
 
+  // create a unique identifier for the score
   const getScoreKey = (gameIndex: number, matchIndex: number, team: number) =>
     `${gameIndex}-${matchIndex}-${team}`;
 
+  // retrieve the players names & play-to score from input page
+  // converting them to Player[]
   const [players, setPlayers] = useState<Player[]>(() => {
     const locationState = location.state;
     let playerData = null;
@@ -146,6 +149,10 @@ const RRGamePage = () => {
       [key]: score,
     }));
   };
+  const handleHome = () => {
+    navigate("/");
+    window.location.reload();
+  };
 
   const endGame = () => {
     // Use the games array with applied scores for final tally
@@ -165,7 +172,12 @@ const RRGamePage = () => {
         {/* Header */}
         <header className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center space-x-2">
-            <img src={logo} alt="Logo" className="w-12 h-12" />
+            <img
+              onClick={handleHome}
+              src={logo}
+              alt="Logo"
+              className="w-12 h-12"
+            />
             <h1 className="text-xl font-black tracking-wider">Round Robin</h1>
           </div>
         </header>
