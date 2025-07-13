@@ -180,5 +180,7 @@ export default function InputPage() {
         </button>
       </section>
     </div>
+
+    // conditionally render a timer input x minutes for the game
   );
 }

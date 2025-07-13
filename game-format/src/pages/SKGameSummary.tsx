@@ -1,33 +1,21 @@
 import React, { useEffect, useState } from "react";
-import logo from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
-import { Player } from "../utils/RRDoublesGenerator";
+import { Team } from "../utils/SKDoubleGenerator";
+import logo from "../assets/logo.png";
 
-interface PlayerResult {
-  rank: number;
-  name: string;
-  score: number;
-}
-
-const RRGameSummary: React.FC = () => {
+const SKGameSummary: React.FC = () => {
   const navigate = useNavigate();
-  const [playerRank, setPlayerRank] = useState<Player[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   useEffect(() => {
-    const storedResults = localStorage.getItem("finalResults");
-    if (storedResults) {
+    const storedTeams = localStorage.getItem("SKFinalResults");
+    if (storedTeams) {
       try {
-        setPlayerRank(JSON.parse(storedResults));
+        setTeams(JSON.parse(storedTeams));
       } catch (err) {
         console.error("Error parsing finalResults:", err);
       }
     }
-  });
-
-  const results: PlayerResult[] = playerRank.map((player, index) => ({
-    rank: index + 1,
-    name: player.name,
-    score: player.score,
-  }));
+  }, []);
 
   const handleGameSetup = () => {
     console.log("Navigate to Game Setup");
@@ -54,7 +42,7 @@ const RRGameSummary: React.FC = () => {
               <img src={logo} alt="Logo" className="w-12 h-12" />
 
               <h1 className="text-2xl font-bold text-gray-900 tracking-wider">
-                ROUND ROBIN RESULTS
+                SINGLE KNOCKOUT RESULTS
               </h1>
             </div>
           </div>
@@ -91,33 +79,23 @@ const RRGameSummary: React.FC = () => {
                 FINAL RESULTS
               </h2>
             </div>
-            <div className="ml-auto">
-              <span className="text-lg font-bold text-gray-900 tracking-wider">
-                SCORE
-              </span>
-            </div>
           </div>
 
           {/* Results List */}
           <div className="space-y-4">
-            {results.map((result) => (
-              <div key={result.rank} className="flex items-center">
+            {teams.map((team) => (
+              <div key={team.rank} className="flex items-center">
                 <div className="w-12 flex-shrink-0">
                   <span className="text-2xl font-bold text-gray-900">
-                    #{result.rank}
+                    #{team.rank}
                   </span>
                 </div>
                 <div className="flex-1 mx-6">
                   <div className="bg-gray-100 rounded-full px-6 py-4 border border-gray-200">
                     <span className="text-lg font-bold text-gray-900 tracking-wider">
-                      {result.name}
+                      {team.id}
                     </span>
                   </div>
-                </div>
-                <div className="w-16 flex-shrink-0 text-right">
-                  <span className="text-2xl font-bold text-gray-900">
-                    {result.score}
-                  </span>
                 </div>
               </div>
             ))}
@@ -138,4 +116,4 @@ const RRGameSummary: React.FC = () => {
   );
 };
 
-export default RRGameSummary;
+export default SKGameSummary;

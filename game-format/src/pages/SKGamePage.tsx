@@ -10,15 +10,20 @@ import {
   sortTeamsByRank,
 } from "../utils/SKDoubleGenerator";
 import { useLocation, useNavigate } from "react-router-dom";
+import Court from "../components/court";
 import logo from "../assets/logo.png";
 
-interface SKGamePageProps {
-  onTournamentComplete: (rankedTeams: Team[]) => void;
+interface CourtScore {
+  score1: string;
+  score2: string;
 }
 
-const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
+const SKGamePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Configurable number of courts
+  const NUMBER_OF_COURTS = 2; // Can be made configurable through props or state
 
   const [players, setPlayers] = useState<Player[]>(() => {
     const locationState = location.state;
@@ -62,34 +67,25 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
     return 8;
   });
 
-  /**
-   * Get party display name
-   */
-  const getPartyName = (party: Player | Team): string => {
-    if (party as Player) {
-      const player = party as Player;
-      return player.name;
-    } else if (party as Team) {
-      const team = party as Team;
-      return team.id;
-    } else {
-      return "";
-    }
-  };
   const [tournamentState, setTournamentState] = useState<TournamentState>(() =>
     initialiseMatches(players)
   );
 
-  // Score inputs for each court
-  const [court1Score1, setCourt1Score1] = useState<string>("");
-  const [court1Score2, setCourt1Score2] = useState<string>("");
-  const [court2Score1, setCourt2Score1] = useState<string>("");
-  const [court2Score2, setCourt2Score2] = useState<string>("");
+  // Dynamic court scores based on number of courts
+  const [courtScores, setCourtScores] = useState<Record<number, CourtScore>>(
+    () => {
+      const initialScores: Record<number, CourtScore> = {};
+      for (let i = 1; i <= NUMBER_OF_COURTS; i++) {
+        initialScores[i] = { score1: "", score2: "" };
+      }
+      return initialScores;
+    }
+  );
 
   // Auto-start matches when courts are available
   useEffect(() => {
     if (
-      tournamentState.currentMatches.length < 2 &&
+      tournamentState.currentMatches.length < NUMBER_OF_COURTS &&
       tournamentState.pendingMatches.length > 0
     ) {
       const newState = startAvailableMatches(tournamentState);
@@ -102,88 +98,85 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
 
   // Reset score inputs when matches change
   useEffect(() => {
-    const court1Match = tournamentState.currentMatches.find(
-      (match) => match.court === 1
-    );
-    const court2Match = tournamentState.currentMatches.find(
-      (match) => match.court === 2
-    );
-
-    // Always reset if the match ID (or teams) change
-    setCourt1Score1("");
-    setCourt1Score2("");
-    setCourt2Score1("");
-    setCourt2Score2("");
+    const newScores: Record<number, CourtScore> = {};
+    for (let i = 1; i <= NUMBER_OF_COURTS; i++) {
+      newScores[i] = { score1: "", score2: "" };
+    }
+    setCourtScores(newScores);
   }, [
-    getPartyName(
-      tournamentState.currentMatches.find((m) => m.court === 1)?.party1!
-    ),
-    getPartyName(
-      tournamentState.currentMatches.find((m) => m.court === 1)?.party2!
-    ),
-    getPartyName(
-      tournamentState.currentMatches.find((m) => m.court === 2)?.party1!
-    ),
-    getPartyName(
-      tournamentState.currentMatches.find((m) => m.court === 2)?.party2!
-    ),
+    tournamentState.currentMatches
+      .map((m) => `${m.court}-${m.party1}-${m.party2}`)
+      .join(","),
   ]);
+
+  // Navigate to result page once the tournament is complete
+  useEffect(() => {
+    if (isTournamentComplete()) {
+      endGame();
+    }
+  }, [tournamentState]);
 
   /**
    * Handle score update for a specific court
    */
   const handleScoreUpdate = (
-    court: 1 | 2,
+    courtNumber: number,
     scorePosition: 1 | 2,
     value: string
   ) => {
-    const match = tournamentState.currentMatches.find((m) => m.court === court);
+    const match = tournamentState.currentMatches.find(
+      (m) => m.court === courtNumber
+    );
     if (!match) {
-      console.warn(`No current match on court ${court}`);
+      console.warn(`No current match on court ${courtNumber}`);
       return;
     }
 
     const numericValue = parseInt(value) || 0;
 
     // Validate score - don't allow scores greater than playToScore
-    if (numericValue > playToScore) {
+    if (value !== "" && numericValue > playToScore) {
       console.log(
         `Invalid score: ${numericValue} is greater than maximum ${playToScore}`
       );
       return;
     }
 
-    // Update local state for inputs
-    if (court === 1) {
-      if (scorePosition === 1) setCourt1Score1(value);
-      else setCourt1Score2(value);
-    } else {
-      if (scorePosition === 1) setCourt2Score1(value);
-      else setCourt2Score2(value);
-    }
-
-    // Update match scores
-    setTournamentState((prevState) => ({
-      ...prevState,
-      currentMatches: prevState.currentMatches.map((m) =>
-        m.court === court
-          ? {
-              ...m,
-              score1: scorePosition === 1 ? numericValue : m.score1,
-              score2: scorePosition === 2 ? numericValue : m.score2,
-            }
-          : m
-      ),
+    // Update local state for inputs first
+    setCourtScores((prev) => ({
+      ...prev,
+      [courtNumber]: {
+        ...prev[courtNumber],
+        [scorePosition === 1 ? "score1" : "score2"]: value,
+      },
     }));
+
+    // Update match scores only if value is not empty
+    if (value !== "") {
+      setTournamentState((prevState) => ({
+        ...prevState,
+        currentMatches: prevState.currentMatches.map((m) =>
+          m.court === courtNumber
+            ? {
+                ...m,
+                score1: scorePosition === 1 ? numericValue : m.score1,
+                score2: scorePosition === 2 ? numericValue : m.score2,
+              }
+            : m
+        ),
+      }));
+    }
   };
 
   /**
    * Complete a specific match
    */
-  const completeMatch = (court: 1 | 2) => {
-    const match = tournamentState.currentMatches.find((m) => m.court === court);
+  const completeMatch = (courtNumber: number) => {
+    const match = tournamentState.currentMatches.find(
+      (m) => m.court === courtNumber
+    );
     if (!match) {
-      console.warn(`No current match on court ${court}`);
+      console.warn(`No current match on court ${courtNumber}`);
       return;
     }
 
@@ -207,17 +200,6 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
   };
 
   /**
-   * Get party display for team members
-   */
-  const getTeamMemberNames = (party: Player | Team): string => {
-    if ("name" in party) {
-      return party.name;
-    } else {
-      return `${party.player1.name} & ${party.player2.name}`;
-    }
-  };
-
-  /**
    * Check if tournament is complete
    */
   const isTournamentComplete = () => {
@@ -233,34 +215,24 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
   const endGame = () => {
     if (tournamentState.participatingTeams) {
       const rankedTeams = sortTeamsByRank(tournamentState.participatingTeams);
-      onTournamentComplete(rankedTeams);
+      localStorage.setItem("SKFinalResults", JSON.stringify(rankedTeams));
+      navigate("./SKGameSummary");
     }
-  };
-
-  /**
-   * Get score inputs for a specific court
-   */
-  const getScoreInputs = (court: 1 | 2) => {
-    if (court === 1) {
-      return { score1: court1Score1, score2: court1Score2 };
-    } else {
-      return { score1: court2Score1, score2: court2Score2 };
-    }
-  };
-
-  /**
-   * Check if a match can be completed
-   */
-  const canCompleteMatch = (match: Match) => {
-    if (match.score1 === undefined || match.score2 === undefined) {
-      return false;
-    }
-    // Must have at least one team reach the playToScore
-    return match.score1 === playToScore || match.score2 === playToScore;
   };
 
   const handleGameSetup = () => {
     navigate("../InputPage");
+  };
+
+  /**
+   * Get responsive grid columns based on number of courts
+   */
+  const getGridColumns = (courtCount: number): string => {
+    if (courtCount === 1) return "grid-cols-1";
+    if (courtCount === 2) return "grid-cols-1 lg:grid-cols-2";
+    if (courtCount === 3) return "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3";
+    if (courtCount === 4) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-4";
+    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
   };
 
   const handleHome = () => {
@@ -285,7 +257,7 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
               onClick={handleHome}
               src={logo}
               alt="Logo"
-              className="w-12 h-12"
+              className="w-12 h-12 cursor-pointer"
             />
             <h1 className="text-xl font-black tracking-wider">
               Single Knockout
@@ -353,138 +325,34 @@ const SKGamePage: React.FC<SKGamePageProps> = ({ onTournamentComplete }) => {
           </button>
         </div>
 
-        {/* Courts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {[1, 2].map((courtNumber) => {
+        {/* Courts - Dynamic rendering */}
+        <div className={`grid gap-8 mb-12 ${getGridColumns(NUMBER_OF_COURTS)}`}>
+          {Array.from({ length: NUMBER_OF_COURTS }, (_, index) => {
+            const courtNumber = index + 1;
             const match = tournamentState.currentMatches.find(
               (m) => m.court === courtNumber
             );
-            const scoreInputs = getScoreInputs(courtNumber as 1 | 2);
+            const scores = courtScores[courtNumber] || {
+              score1: "",
+              score2: "",
+            };
 
             return (
-              <div
+              <Court
                 key={courtNumber}
-                className="bg-white rounded-lg overflow-hidden shadow-lg"
-              >
-                <div className="bg-black text-white p-4">
-                  <h3 className="text-xl font-bold tracking-wider">
-                    COURT {courtNumber}
-                  </h3>
-                </div>
-
-                {match ? (
-                  <div className="p-6">
-                    <p className="flex justify-end text-sm text-gray-600 mb-6 tracking-wider">
-                      SCORE
-                    </p>
-                    {[1, 2].map((team) => {
-                      const party = team === 1 ? match.party1 : match.party2;
-                      return (
-                        <div
-                          key={team}
-                          className="flex items-center justify-between mb-4"
-                        >
-                          <span className="text-2xl font-semibold tracking-wider">
-                            {party ? getTeamMemberNames(party) : "TBD"}
-                          </span>
-                          <input
-                            type="text"
-                            maxLength={2}
-                            inputMode="numeric"
-                            pattern="\d*"
-                            value={
-                              team === 1
-                                ? scoreInputs.score1
-                                : scoreInputs.score2
-                            }
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value === "" || /^\d+$/.test(value)) {
-                                handleScoreUpdate(
-                                  courtNumber as 1 | 2,
-                                  team as 1 | 2,
-                                  value
-                                );
-                              }
-                            }}
-                            className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
-                          />
-                        </div>
-                      );
-                    })}
-
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        onClick={() => completeMatch(courtNumber as 1 | 2)}
-                        disabled={!canCompleteMatch(match)}
-                        className="px-4 py-2 bg-black text-white rounded-lg font-semibold tracking-wider hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        COMPLETE MATCH
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-gray-500">
-                    <p className="text-lg">Court Available</p>
-                    <p className="text-sm">Waiting for next match...</p>
-                  </div>
-                )}
-              </div>
+                courtNumber={courtNumber}
+                match={match}
+                playToScore={playToScore}
+                score1={scores.score1}
+                score2={scores.score2}
+                onScoreUpdate={(scorePosition, value) =>
+                  handleScoreUpdate(courtNumber, scorePosition, value)
+                }
+                onCompleteMatch={() => completeMatch(courtNumber)}
+              />
             );
           })}
         </div>
-
-        {/* Tournament Complete */}
-        {isTournamentComplete() && (
-          <div className="bg-white rounded-lg overflow-hidden shadow-lg mb-12">
-            <div className="bg-green-600 text-white p-4">
-              <h3 className="text-xl font-bold tracking-wider">
-                TOURNAMENT COMPLETE!
-              </h3>
-            </div>
-            <div className="p-6">
-              <p className="text-center mb-4">
-                All matches have been completed.
-              </p>
-              {tournamentState.participatingTeams &&
-                tournamentState.participatingTeams.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold mb-4 tracking-wider">
-                      FINAL RANKINGS
-                    </h4>
-                    <div className="grid gap-2">
-                      {sortTeamsByRank(tournamentState.participatingTeams).map(
-                        (team, index) => (
-                          <div
-                            key={team.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded border"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="font-bold text-xl text-gray-600">
-                                #{team.rank}
-                              </span>
-                              <span className="font-medium text-lg">
-                                {team.player1.name} & {team.player2.name}
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {team.rank === 1
-                                ? "🥇"
-                                : team.rank === 2
-                                ? "🥈"
-                                : team.rank === 3
-                                ? "🥉"
-                                : ""}
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
