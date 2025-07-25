@@ -1,27 +1,8 @@
 // Types
-export interface Player {
-  name: string; // acts as ID
-  score: number;
-}
-
-export interface Team {
-  id: string; // player1's name-player2's name
-  rank: number; // initialised to 4
-  player1: Player;
-  player2: Player;
-}
-
-export interface Match {
-  type: 'single' | 'double';
-  party1?: Player | Team;
-  party2?: Player | Team;
-  score1?: number;
-  score2?: number;
-  winner?: Player | Team;
-  court?: 1 | 2; // Add court assignment
-}
+import type {Player, Team, Match} from '@/types';
 
 export interface TournamentState {
+  numOfCourts : number,
   pendingMatches: Match[];
   finishedMatches: Match[];
   currentMatches: Match[]; // Changed from currentMatch to currentMatches array
@@ -45,10 +26,15 @@ function generatePlayInMatches(players: Player[]): Match[] {
   const numPlayIn = calculatePlayInMatches(players.length);
   
   for (let i = 0; i < numPlayIn; i++) {
+    const player1 = players[i * 2];
+    const player2 = players[i * 2 + 1];
     playInMatches.push({
+      id: `${player1.id} vs ${player2.id}`,
       type: 'single',
       party1: players[i * 2],
-      party2: players[i * 2 + 1]
+      party2: players[i * 2 + 1],
+      score1: 0,
+      score2: 0
     });
   }
   
@@ -68,10 +54,15 @@ function generateBracket1Matches(players: Player[]): Match[] {
   
   // 2 bracket1 matches are created
   for (let i = 0; i < 2; i++) {
+    const team1 = createTeam(players.shift()!, players.shift()!);
+    const team2 = createTeam(players.shift()!, players.shift()!);
     bracketMatches.push({
+      id: `${team1.id} vs ${team2.id}`,
       type: 'double' as const,
-      party1: createTeam(players.shift()!, players.shift()!),
-      party2: createTeam(players.shift()!, players.shift()!)
+      party1: team1,
+      party2: team2,
+      score1: 0,
+      score2: 0
     });
   }
   
@@ -83,10 +74,12 @@ function generateBracket1Matches(players: Player[]): Match[] {
  */
 function createTeam(player1: Player, player2: Player): Team {
   return {
-    id: `${player1.name}-${player2.name}`,
+    id: `${player1.id} & ${player2.id}`,
+    type: "pair",
     rank: 4, // initialised to 4
-    player1,
-    player2
+    player1: player1,
+    player2: player2, 
+    score: 0
   };
 }
 
@@ -162,12 +155,12 @@ function canMatchStart(match: Match, currentMatches: Match[]): boolean {
       
       if (currentTeam1 && currentTeam2 && matchTeam1 && matchTeam2) {
         const currentPlayers = [
-          currentTeam1.player1.name, currentTeam1.player2.name,
-          currentTeam2.player1.name, currentTeam2.player2.name
+          currentTeam1.player1.id, currentTeam1.player2!.id,
+          currentTeam2.player1.id, currentTeam2.player2!.id
         ];
         const matchPlayers = [
-          matchTeam1.player1.name, matchTeam1.player2.name,
-          matchTeam2.player1.name, matchTeam2.player2.name
+          matchTeam1.player1.id, matchTeam1.player2!.id,
+          matchTeam2.player1.id, matchTeam2.player2!.id
         ];
         
         console.log('Current players:', currentPlayers);
@@ -193,7 +186,7 @@ function canMatchStart(match: Match, currentMatches: Match[]): boolean {
  * Output: tournament state with pending matches filled with play-in matches, 
  * and participating players pre-entered with byed players
  */
-export function initialiseMatches(players: Player[]): TournamentState {
+export function initialiseMatches(players: Player[], numOfCourts: number): TournamentState {
   const numPlayers = players.length;
   const numPlayIn = calculatePlayInMatches(numPlayers);
   
@@ -204,6 +197,7 @@ export function initialiseMatches(players: Player[]): TournamentState {
   const byedPlayers = players.slice(numPlayIn * 2); // duplicate the list for 8 players
   
   let initialState: TournamentState = {
+    numOfCourts: numOfCourts,
     pendingMatches: [...playInMatches],
     finishedMatches: [],
     currentMatches: [],
@@ -231,7 +225,7 @@ export function startAvailableMatches(state: TournamentState): TournamentState {
   // Try to generate bracket matches if we have enough players
   newState = trygenerateBracket1Matches(newState);
   
-  const availableCourts = [1, 2].filter(court => 
+  const availableCourts = Array.from({ length: state.numOfCourts }, (_, i) => i + 1).filter(court => 
     !newState.currentMatches.some(match => match.court === court)
   );
   
@@ -326,7 +320,9 @@ export function advanceMatch(state: TournamentState, matchToAdvance: Match): Tou
   // Handle double matches
   if (currentMatch.type === 'double') {
     const winningTeam = currentMatch.winner as Team;
-    winningTeam.rank -= 1;
+    if (winningTeam.rank) {
+      winningTeam.rank -= 1;
+    }
   }
   
   // Move current match to finished matches
@@ -339,22 +335,30 @@ export function advanceMatch(state: TournamentState, matchToAdvance: Match): Tou
   newState = trygenerateBracket1Matches(newState);
   
   // Check if we need to generate bracket 2
-  const rankSum = newState.participatingTeams?.reduce((acc, t) => acc + t.rank, 0);
+  const rankSum = newState.participatingTeams?.reduce((acc, t) => acc + t.rank!, 0);
   if (newState.pendingMatches.length == 0 && rankSum == 14) {
     // Generate bracket 2
     // Sort teamlist by rank (highest rank first for winner/loser bracket)
-    newState.participatingTeams?.sort((a, b) => a.rank - b.rank);
+    newState.participatingTeams?.sort((a, b) => a.rank! - b.rank!);
     
     // Generate two matches (winner match & loser match)    
-    const winnerMatch = {type: 'double' as const, 
+    const winnerMatch = { 
+      id: `${newState.participatingTeams![0].id} vs ${newState.participatingTeams![1].id}`, 
+      type: 'double' as const, 
       party1: newState.participatingTeams![0],
       party2: newState.participatingTeams![1],
+      score1: 0,
+      score2: 0
     }
     // decrease rank for the winnerMatch 
     setWinnerMatchRank(winnerMatch);
-    const loserMatch = {type: 'double' as const, 
+    const loserMatch = {
+      id: `${newState.participatingTeams![2].id} vs ${newState.participatingTeams![3].id}`,
+      type: 'double' as const, 
       party1: newState.participatingTeams![2],
       party2: newState.participatingTeams![3],
+      score1: 0,
+      score2:0
     }
     // Add bracket 2 matches to pending matches first
     newState.pendingMatches.push(winnerMatch, loserMatch);
@@ -383,7 +387,7 @@ export function getRankingMap(teams: Team[]): Map<number, Team> {
   const rankingMap = new Map<number, Team>();
   
   teams.forEach(team => {
-    rankingMap.set(team.rank, team);
+    rankingMap.set(team.rank!, team);
   });
   
   return rankingMap;
@@ -393,5 +397,5 @@ export function getRankingMap(teams: Team[]): Map<number, Team> {
  * Sort teams by rank
  */
 export function sortTeamsByRank(teams: Team[]): Team[] {
-  return [...teams].sort((a, b) => a.rank - b.rank);
+  return [...teams].sort((a, b) => a.rank! - b.rank!);
 }

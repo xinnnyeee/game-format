@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
-import { Player } from "../utils/RRDoublesGenerator";
+import { Player } from "@/types";
 
 interface PlayerResult {
   rank: number;
@@ -23,15 +23,23 @@ const RRGameSummary: React.FC = () => {
     }
   });
 
-  const results: PlayerResult[] = playerRank.map((player, index) => ({
+  const sortedPlayers = [...playerRank].sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score; // Higher scores first
+    }
+    return a.id.localeCompare(b.id); // Alphabetical for ties
+  });
+
+  const results: PlayerResult[] = sortedPlayers.map((player, index) => ({
     rank: index + 1,
-    name: player.name,
+    name: player.id,
     score: player.score,
   }));
 
   const handleGameSetup = () => {
     console.log("Navigate to Game Setup");
     navigate("../InputPage");
+    window.location.reload();
   };
 
   const handleHome = () => {

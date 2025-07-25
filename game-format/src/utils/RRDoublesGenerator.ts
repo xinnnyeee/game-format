@@ -1,13 +1,6 @@
-export type Player = {
-  score: number;
-  name: string;
-};
+import {Player, Match, Team, TournamentState} from "@/types"
 
-export type Team = [Player, Player];
-export type Match = {id : string, team1: Team, team2: Team, score1: number, score2: number};
-export type Session = [Match, Match];
-export type Schedule = Session[];
-
+// in-place offseting of player list
 export function offset(players: Player[]): void {
   if (players.length === 0) {
     console.log("players list empty");
@@ -21,36 +14,21 @@ export function offset(players: Player[]): void {
   }
 }
 
-export function generateMatchesPerRound(numOfPlayers: number): number {
-  if (numOfPlayers >= 8 && numOfPlayers <= 14) {
-    return Math.floor(numOfPlayers / 4);
-  } else {
-    return -1;
-  }
-}
-
-export function generateRRMatches(players: Player[]): Schedule {
-  if (players.length < 8 || players.length > 14) {
-    console.log("Invalid number of players, must be kept between 8 and 14");
-    return [];
-  }
-  return generateDoubleMatchesFromPlayers(players);
-}
-
-export function generateDoubleMatchesFromPlayers(players: Player[]): Schedule {
+// generate all matches at the start
+export function generateDoubleMatchesFromPlayers(players: Player[]): Match[] {
   const numOfRounds = players.length - 1;
   const allMatches: Match[] = [];
-  const numOfMatchesPerRound = generateMatchesPerRound(players.length);
+  const workingPlayers = [...players]; // Create a copy to avoid modifying original
   const offsets = players.length % 4;
 
   for (let i = 0; i < numOfRounds; i++) {
-    offset(players);
-    const validPlayers = offsets === 0 ? [...players] : players.slice(0, -offsets); // sit out some players
+    offset(workingPlayers);
+    const validPlayers = offsets === 0 ? [...workingPlayers] : workingPlayers.slice(0, -offsets); // sit out some players
     const newMatches = generateMatchesFromPlayers(validPlayers);
     allMatches.push(...newMatches);
   }
 
-  return generateSessionsFromMatches(allMatches, numOfMatchesPerRound);
+  return allMatches;
 }
 
 // turns 12 34 56 78 into 2 matches 
@@ -66,17 +44,25 @@ export function generateMatchesFromPlayers(players: Player[]): Match[] {
   while (queue.length >= 2) {
     const p1 = queue.shift()!;
     const p2 = queue.shift()!;
-    teamList.push([p1, p2]);
+    const newTeam: Team = {
+      id: `${p1.id} & ${p2.id}`, // Fixed template literal syntax
+      type: "pair",
+      player1: p1, 
+      player2: p2, 
+      score: 0
+    }
+    teamList.push(newTeam);
   }
 
   const matchList: Match[] = [];
   while (teamList.length >= 2) {
     const t1 = teamList.shift()!;
     const t2 = teamList.shift()!;
-    const match : Match = {
-      id:crypto.randomUUID(), 
-      team1: t1, 
-      team2: t2, 
+    const match: Match = {
+      id: `${t1.id} vs ${t2.id}`, 
+      type: "double",
+      party1: t1, 
+      party2: t2, 
       score1: 0, 
       score2: 0
     }
@@ -86,118 +72,144 @@ export function generateMatchesFromPlayers(players: Player[]): Match[] {
   return matchList;
 }
 
-export function generateSessionsFromMatches(matches: Match[], numOfMatchesPerRound: number): Session[] {
-  const sessList: Session[] = [];
-  const dummyPlayer: Player = { name: "BYE", score: 0 };
-  const dummyMatch: Match = {id: crypto.randomUUID(), team1: [dummyPlayer, dummyPlayer], team2: [dummyPlayer, dummyPlayer], score1: 0, score2: 0};
-
-  if (numOfMatchesPerRound === 2) {
-    while (matches.length >= 2) {
-      const sess: Session = [matches.shift()!, matches.shift()!];
-      sessList.push(sess);
-    }
-    if (matches.length === 1) {
-      sessList.push([matches.pop()!, dummyMatch]);
-    }
-  } else if (numOfMatchesPerRound === 3) {
-    let j = 0;
-    while (j + 6 <= matches.length) {
-      sessList.push([matches[j], matches[j + 1]]);
-      sessList.push([matches[j + 2], matches[j + 4]]);
-      sessList.push([matches[j + 3], matches[j + 5]]);
-      j += 6;
-    }
-    if (matches.length - j === 3) {
-      sessList.push([matches[j], matches[j + 1]]);
-      sessList.push([matches[j + 2], dummyMatch]);
-    }
+// get players from one match
+export function getPlayers(match: Match): Player[] {
+  const playerList = [];
+  if (match.type == 'double') {
+    const team1 = match.party1 as Team;
+    const team2 = match.party2 as Team;
+    playerList.push(team1.player1);
+    if (team1.player2) playerList.push(team1.player2); // Added null check
+    playerList.push(team2.player1);
+    if (team2.player2) playerList.push(team2.player2); // Added null check
+  } else {
+    const player1 = match.party1 as Player;
+    const player2 = match.party2 as Player;
+    playerList.push(player1);
+    if (player2) playerList.push(player2); // Added null check
   }
-
-  return sessList;
+  return playerList;
 }
 
-export function tallyMatchScore(games: Schedule): Player[] {
-  // Use a Map to track unique players and their accumulated match scores
-  const playerMatchScores = new Map<string, number>();
+// get players from multiple matches
+export function generatePlayersFromMatches(matches: Match[]): Player[] {
+  const allPlayers = [];
+  for (let i = 0; i < matches.length; i++) {
+    allPlayers.push(...getPlayers(matches[i]));
+  } 
+  return allPlayers;
+}
+
+// generate the next available match from pending match, one that doens't collide with existing matches
+// return null if not found
+export function findNextAvailMatch(state: TournamentState): Match | null {
+  let availMatch = null;
+
+  if (state.currentMatches.length == 0) {
+    return state.pendingMatches.length > 0 ? state.pendingMatches[0] : null; // Added length check
+  }
+
+  const currentPlayers = generatePlayersFromMatches(state.currentMatches);
+  const currPlayerSet = new Set(currentPlayers.map(p => p.id)); // Use player IDs for comparison
   
-  // First, accumulate all match scores for each player
-  for (let i = 0; i < games.length; i++) {
-    const session = games[i];
-    for (let j = 0; j < session.length; j++) {
-      const match: Match = session[j];
-      
-      // Skip BYE matches
-      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
-        continue;
+  for (let i = 0; i < state.pendingMatches.length; i++) {
+    const potentialMatch = state.pendingMatches[i];
+    const potentialMatchPlayers = getPlayers(potentialMatch);
+    let isOverlapping = false;
+    // check that all the potentialMatchPlayers are non-overlapping
+    for (let j = 0; j < potentialMatchPlayers.length; j++) {
+      if (currPlayerSet.has(potentialMatchPlayers[j].id)) { // Compare by ID
+        isOverlapping = true;
+        break;
       }
-      
-      // Add match scores for team1 players 
-      // Assumption: player name is unique
-      match.team1.forEach(player => {
-        const currentScore = playerMatchScores.get(player.name) || 0;
-        playerMatchScores.set(player.name, currentScore + match.score1);
-      });
-      
-      // Add match scores for team2 players
-      match.team2.forEach(player => {
-        const currentScore = playerMatchScores.get(player.name) || 0;
-        playerMatchScores.set(player.name, currentScore + match.score2);
-      });
+    }
+    if (isOverlapping == false) {
+      availMatch = potentialMatch;
+      break; // Found the first available match, break out of loop
+    }
+  }
+  return availMatch;
+}
+
+export function initialise(numOfCourts: number, players: Player[]): TournamentState {
+  const pendingMatches: Match[] = generateDoubleMatchesFromPlayers(players);
+  const allPlayers: Player[] = [...players]; // Use original players, not from matches
+  const currentMatches: Match[] = [];
+
+  const initialState: TournamentState = {
+    numOfCourts: numOfCourts, 
+    pendingMatches: pendingMatches, 
+    currentMatches: currentMatches,
+    finishedMatches: [],
+    participatingPlayers: allPlayers
+  }
+
+  // populate current Matches with non-conflicting matches as much as possible
+  for (let i = 0; i < numOfCourts; i++) {
+    const newMatch = findNextAvailMatch(initialState);
+    if (newMatch) {
+      newMatch.court = i + 1;
+      initialState.currentMatches.push(newMatch);
+      // Remove the match from pending matches
+      initialState.pendingMatches = initialState.pendingMatches.filter(m => m.id !== newMatch.id);
     }
   }
   
-  // Create a set of unique players from the first occurrence in matches
-  const uniquePlayers = new Map<string, Player>();
-  
-  for (let i = 0; i < games.length; i++) {
-    const session = games[i];
-    for (let j = 0; j < session.length; j++) {
-      const match: Match = session[j];
-      
-      // Skip BYE matches
-      if (match.team1[0].name === "BYE" || match.team2[0].name === "BYE") {
-        continue;
-      }
-      
-      // Collect unique players (using first occurrence)
-      match.team1.forEach(player => {
-        if (!uniquePlayers.has(player.name)) {
-          uniquePlayers.set(player.name, { ...player });
-        }
-      });
-      
-      match.team2.forEach(player => {
-        if (!uniquePlayers.has(player.name)) {
-          uniquePlayers.set(player.name, { ...player });
-        }
-      });
-    }
+  return initialState;
+}
+
+export function advanceMatch(matchToAdvance: Match, state: TournamentState) {
+  const matchIndex = state.currentMatches.findIndex(match => match.id === matchToAdvance.id); // Compare by ID
+  if (matchIndex === -1) {
+    throw new Error('Match not found in current matches');
   }
   
-  // Create final player list with accumulated scores
-  const finalPlayerList: Player[] = Array.from(uniquePlayers.values()).map(player => ({
-    name: player.name,
-    score: (player.score || 0) + (playerMatchScores.get(player.name) || 0)
-  }));
+  const currentMatch = matchToAdvance;
   
-  // Sort by total score (highest first)
-  finalPlayerList.sort((a, b) => b.score - a.score);
+  // Update and compare scores to determine winner
+  if (currentMatch.score1 !== undefined && currentMatch.score2 !== undefined) {
+    if (currentMatch.score1 > currentMatch.score2) {
+      currentMatch.winner = currentMatch.party1;
+    } else if (currentMatch.score2 > currentMatch.score1) {
+      currentMatch.winner = currentMatch.party2;
+    } else {
+      throw new Error('Match cannot end in a tie');
+    }
+  }
+
+  // having gotten the winner, update the score for each player of the team
+  const winningTeam = currentMatch.winner as Team;
+  updateScore(winningTeam, state);
+
+
+  // find a new match to put in the court
+  const newMatch = findNextAvailMatch(state);
+
+  // insert the match into the finished match, remove it from current matches
+  state.finishedMatches.push(currentMatch);
+  state.currentMatches = state.currentMatches.filter(match => match.id !== matchToAdvance.id); // Compare by ID
+
+  // bring the new match to the current match list
+  const emptyCourt = currentMatch.court;
+  if (newMatch) {
+    newMatch.court = emptyCourt;
+    state.currentMatches.push(newMatch);
+    // Remove the match from pending matches
+    state.pendingMatches = state.pendingMatches.filter(m => m.id !== newMatch.id);
+  }
+}
+
+export function updateScore(winner: Team, state: TournamentState) {
+  // for each of the player in the team, find the player from "participatingPlayers"
+  const playerIndex1 = state.participatingPlayers!.findIndex(player => player.id === winner.player1.id); // Compare by ID
+  if (playerIndex1 !== -1) {
+    state.participatingPlayers![playerIndex1].score += 1;
+  }
   
-  return finalPlayerList;
+  if (winner.player2) { // Check if player2 exists
+    const playerIndex2 = state.participatingPlayers!.findIndex(player => player.id === winner.player2!.id); // Compare by ID
+    if (playerIndex2 !== -1) {
+      state.participatingPlayers![playerIndex2].score += 1;
+    }
+  }
 }
-
-
-
-export function makeAssignedScore(team: Team, score: number) {
-  console.warn("makeAssignedScore is deprecated. Use tallyMatchScore instead.");
-  team[0].score = score;
-  team[1].score = score;
-}
-
-//Helper function to reset all player scores to 0
-export function resetPlayerScores(players: Player[]): void {
-  players.forEach(player => {
-    player.score = 0;
-  });
-}
-

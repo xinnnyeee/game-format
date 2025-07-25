@@ -1,29 +1,42 @@
 import React, { useState, useEffect } from "react";
+import type { Player, TournamentState } from "@/types";
 import {
-  Player,
-  Team,
-  Match,
-  TournamentState,
   initialiseMatches,
   advanceMatch,
   startAvailableMatches,
   sortTeamsByRank,
 } from "../utils/SKDoubleGenerator";
 import { useLocation, useNavigate } from "react-router-dom";
-import Court from "../components/court";
+import Court from "../components/Court";
 import logo from "../assets/logo.png";
+import Banner from "@/components/Banner";
 
 interface CourtScore {
-  score1: string;
-  score2: string;
+  score1: number;
+  score2: number;
 }
 
 const SKGamePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Configurable number of courts
-  const NUMBER_OF_COURTS = 2; // Can be made configurable through props or state
+  // Configurable number of courts - can be made dynamic through props or state
+  const [numberOfCourts, setNumberOfCourts] = useState<number>(() => {
+    const locationState = location.state;
+    if (locationState?.numOfCourts) {
+      return locationState.numOfCourts;
+    } else {
+      const storedNumOfCourts = localStorage.getItem("numOfCourts");
+      if (storedNumOfCourts) {
+        try {
+          return JSON.parse(storedNumOfCourts);
+        } catch (error) {
+          console.error("Error parsing stored numOfCourts:", error);
+        }
+      }
+    }
+    return 2;
+  });
 
   const [players, setPlayers] = useState<Player[]>(() => {
     const locationState = location.state;
@@ -43,7 +56,7 @@ const SKGamePage: React.FC = () => {
 
     if (Array.isArray(playerData)) {
       return playerData.map((playerName: string) => ({
-        name: playerName,
+        id: playerName,
         score: 0,
       }));
     }
@@ -68,24 +81,35 @@ const SKGamePage: React.FC = () => {
   });
 
   const [tournamentState, setTournamentState] = useState<TournamentState>(() =>
-    initialiseMatches(players)
+    initialiseMatches(players, numberOfCourts)
   );
 
   // Dynamic court scores based on number of courts
   const [courtScores, setCourtScores] = useState<Record<number, CourtScore>>(
     () => {
       const initialScores: Record<number, CourtScore> = {};
-      for (let i = 1; i <= NUMBER_OF_COURTS; i++) {
-        initialScores[i] = { score1: "", score2: "" };
+      for (let i = 1; i <= numberOfCourts; i++) {
+        initialScores[i] = { score1: 0, score2: 0 };
       }
       return initialScores;
     }
   );
 
+  // Update court scores when number of courts changes
+  useEffect(() => {
+    setCourtScores((prev) => {
+      const newScores: Record<number, CourtScore> = {};
+      for (let i = 1; i <= numberOfCourts; i++) {
+        newScores[i] = prev[i] || { score1: "", score2: "" };
+      }
+      return newScores;
+    });
+  }, [numberOfCourts]);
+
   // Auto-start matches when courts are available
   useEffect(() => {
     if (
-      tournamentState.currentMatches.length < NUMBER_OF_COURTS &&
+      tournamentState.currentMatches.length < numberOfCourts &&
       tournamentState.pendingMatches.length > 0
     ) {
       const newState = startAvailableMatches(tournamentState);
@@ -94,19 +118,21 @@ const SKGamePage: React.FC = () => {
   }, [
     tournamentState.currentMatches.length,
     tournamentState.pendingMatches.length,
+    numberOfCourts,
   ]);
 
   // Reset score inputs when matches change
   useEffect(() => {
     const newScores: Record<number, CourtScore> = {};
-    for (let i = 1; i <= NUMBER_OF_COURTS; i++) {
-      newScores[i] = { score1: "", score2: "" };
+    for (let i = 1; i <= numberOfCourts; i++) {
+      newScores[i] = { score1: 0, score2: 0 };
     }
     setCourtScores(newScores);
   }, [
     tournamentState.currentMatches
       .map((m) => `${m.court}-${m.party1}-${m.party2}`)
       .join(","),
+    numberOfCourts,
   ]);
 
   // Navigate to result page once the tournament is complete
@@ -115,6 +141,11 @@ const SKGamePage: React.FC = () => {
       endGame();
     }
   }, [tournamentState]);
+
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [bannerType, setBannerType] = useState<
+    "error" | "warning" | "info" | "success"
+  >("error");
 
   /**
    * Handle score update for a specific court
@@ -128,6 +159,8 @@ const SKGamePage: React.FC = () => {
       (m) => m.court === courtNumber
     );
     if (!match) {
+      setBannerMessage(`No current match on court ${courtNumber}`);
+      setBannerType("error");
       console.warn(`No current match on court ${courtNumber}`);
       return;
     }
@@ -136,11 +169,16 @@ const SKGamePage: React.FC = () => {
 
     // Validate score - don't allow scores greater than playToScore
     if (value !== "" && numericValue > playToScore) {
+      setBannerMessage(
+        `Invalid score: ${numericValue} is greater than the play-to score: ${playToScore}`
+      );
+      setBannerType("error");
       console.log(
-        `Invalid score: ${numericValue} is greater than maximum ${playToScore}`
+        `Invalid score: ${numericValue} is greater than the play-to score: ${playToScore}`
       );
       return;
     }
+    setBannerMessage(null);
 
     // Update local state for inputs first
     setCourtScores((prev) => ({
@@ -176,11 +214,15 @@ const SKGamePage: React.FC = () => {
       (m) => m.court === courtNumber
     );
     if (!match) {
+      setBannerMessage(`No current match on court ${courtNumber}`);
+      setBannerType(`error`);
       console.warn(`No current match on court ${courtNumber}`);
       return;
     }
 
     if (match.score1 === undefined || match.score2 === undefined) {
+      setBannerMessage(`Both scores must be entered before completing match`);
+      setBannerType(`error`);
       console.warn("Both scores must be entered before completing match");
       return;
     }
@@ -188,6 +230,10 @@ const SKGamePage: React.FC = () => {
     // Validate that at least one team has reached the playToScore
     if (match.score1 !== playToScore && match.score2 !== playToScore) {
       console.warn(`One team must reach the target score of ${playToScore}`);
+      setBannerMessage(
+        `One team must reach the target score of ${playToScore}`
+      );
+      setBannerType("error");
       return;
     }
 
@@ -224,17 +270,6 @@ const SKGamePage: React.FC = () => {
     navigate("../InputPage");
   };
 
-  /**
-   * Get responsive grid columns based on number of courts
-   */
-  const getGridColumns = (courtCount: number): string => {
-    if (courtCount === 1) return "grid-cols-1";
-    if (courtCount === 2) return "grid-cols-1 lg:grid-cols-2";
-    if (courtCount === 3) return "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3";
-    if (courtCount === 4) return "grid-cols-1 md:grid-cols-2 lg:grid-cols-4";
-    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
-  };
-
   const handleHome = () => {
     navigate("/");
     window.location.reload();
@@ -247,9 +282,47 @@ const SKGamePage: React.FC = () => {
   const progressPercentage =
     (tournamentState.finishedMatches.length / totalMatches) * 100;
 
+  // Generate court components
+  const courts = Array.from({ length: numberOfCourts }, (_, index) => {
+    const courtNumber = index + 1;
+    const match = tournamentState.currentMatches.find(
+      (m) => m.court === courtNumber
+    );
+    const courtScoresData = courtScores[courtNumber] || {
+      score1: 0,
+      score2: 0,
+    };
+    const party1Name = match?.party1!.id;
+    const party2Name = match?.party2!.id;
+
+    return (
+      <Court
+        key={courtNumber}
+        courtNumber={courtNumber}
+        name1={party1Name}
+        name2={party2Name}
+        playToScore={playToScore}
+        score1={courtScoresData.score1}
+        score2={courtScoresData.score2}
+        onScoreUpdate={(scorePosition: 1 | 2, value: string) =>
+          handleScoreUpdate(courtNumber, scorePosition, value)
+        }
+        onCompleteMatch={() => completeMatch(courtNumber)}
+      />
+    );
+  });
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
+        {/* Possible Banner*/}
+        {bannerMessage && (
+          <Banner
+            message={bannerMessage!}
+            type={bannerType}
+            onDismiss={() => setBannerMessage(null)}
+          />
+        )}
         {/* Header */}
         <header className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center space-x-2">
@@ -264,7 +337,6 @@ const SKGamePage: React.FC = () => {
             </h1>
           </div>
         </header>
-
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="w-full h-2 bg-gray-300 rounded-full overflow-hidden">
@@ -274,9 +346,8 @@ const SKGamePage: React.FC = () => {
             ></div>
           </div>
         </div>
-
         {/* Navigation and Tournament Status */}
-        <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center justify-between mb-8">
           <button
             onClick={handleGameSetup}
             className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
@@ -324,34 +395,9 @@ const SKGamePage: React.FC = () => {
             </svg>
           </button>
         </div>
-
-        {/* Courts - Dynamic rendering */}
-        <div className={`grid gap-8 mb-12 ${getGridColumns(NUMBER_OF_COURTS)}`}>
-          {Array.from({ length: NUMBER_OF_COURTS }, (_, index) => {
-            const courtNumber = index + 1;
-            const match = tournamentState.currentMatches.find(
-              (m) => m.court === courtNumber
-            );
-            const scores = courtScores[courtNumber] || {
-              score1: "",
-              score2: "",
-            };
-
-            return (
-              <Court
-                key={courtNumber}
-                courtNumber={courtNumber}
-                match={match}
-                playToScore={playToScore}
-                score1={scores.score1}
-                score2={scores.score2}
-                onScoreUpdate={(scorePosition, value) =>
-                  handleScoreUpdate(courtNumber, scorePosition, value)
-                }
-                onCompleteMatch={() => completeMatch(courtNumber)}
-              />
-            );
-          })}
+        {/* Courts Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+          {courts}
         </div>
       </div>
     </div>

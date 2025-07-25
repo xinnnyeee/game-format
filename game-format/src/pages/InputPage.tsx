@@ -14,6 +14,8 @@ export default function InputPage() {
     setSelectedFormat(storedFormat);
   }, []);
   const [playToScore, setPlayToScore] = useState(8);
+  const [numOfCourts, setNumOfCourts] = useState(2);
+  const [gameDuration, setGameDuration] = useState(); // in minutes
   // create an array to record players as a "useState" - start with 8 players
   const [players, setPlayers] = useState<string[]>(() => {
     // Check if we're returning from game page with previous players
@@ -21,18 +23,52 @@ export default function InputPage() {
     if (previousPlayers && Array.isArray(previousPlayers)) {
       return previousPlayers;
     }
-
     // Otherwise try localStorage
     const stored = localStorage.getItem("Players");
     if (stored) {
       const parsed = JSON.parse(stored);
       return Array.isArray(parsed) ? parsed : parsed.players || [];
     }
-
     // Default empty array
-    return [];
+    return Array(8).fill("");
   });
   const navigate = useNavigate();
+
+  const [hours, setHours] = useState("");
+  const [minutes, setMinutes] = useState("");
+
+  const handleCourtInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value); // Convert string to number
+
+    if (isNaN(value)) {
+      setNumOfCourts(0); // Or handle empty input gracefully
+      return;
+    }
+
+    if (value > Math.floor(players.length / 2)) {
+      console.log(`Number of courts too many for the players`);
+      // TODO: make actual warning here instead of using console log
+    }
+
+    setNumOfCourts(value);
+  };
+
+  const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "" || (/^\d+$/.test(value) && parseInt(value) >= 0)) {
+      setHours(value);
+    }
+  };
+
+  const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (
+      value === "" ||
+      (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 59)
+    ) {
+      setMinutes(value);
+    }
+  };
 
   // reads the input and add to the array
   const handlePlayerChange = (index: number, value: string) => {
@@ -68,9 +104,13 @@ export default function InputPage() {
   };
 
   const enterGame = () => {
-    const stateToPass = { players, playToScore };
+    // TODO: add checking - all the input is done
+
+    const stateToPass = { players, playToScore, numOfCourts };
     localStorage.setItem("Players", JSON.stringify(players));
     localStorage.setItem("playToScore", JSON.stringify(playToScore));
+    localStorage.setItem("numOfCourts", JSON.stringify(numOfCourts));
+
     if (selectedFormat == "ROUND ROBIN") {
       navigate("./RRGamePage", { state: stateToPass });
     } else if (selectedFormat == "SINGLE KNOCKOUT") {
@@ -103,27 +143,74 @@ export default function InputPage() {
         </div>
       </header>
 
-      {/* Set Play-to Score */}
-      <section className="mt-8 mb-8">
-        <h2 className="text-sm font-bold tracking-widest mb-4">
-          SET PLAY-TO SCORE
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          {[8, 11, 15].map((score) => (
-            <button
-              key={score}
-              onClick={() => setPlayToScore(score)}
-              className={`border px-3 py-1 rounded-full text-sm transition-colors ${
-                playToScore === score
-                  ? "border-black bg-black text-white"
-                  : "border-black bg-white text-black hover:bg-gray-100"
-              }`}
-            >
-              {score}
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* Set Play-to Score (Render except KOTC) */}
+      {selectedFormat != "KING OF THE COURT" && (
+        <section className="mt-8 mb-8">
+          <h2 className="text-sm font-bold tracking-widest mb-4">
+            SET PLAY-TO SCORE
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {[8, 11, 15].map((score) => (
+              <button
+                key={score}
+                onClick={() => setPlayToScore(score)}
+                className={`border px-3 py-1 rounded-full text-sm transition-colors ${
+                  playToScore === score
+                    ? "border-black bg-black text-white"
+                    : "border-black bg-white text-black hover:bg-gray-100"
+                }`}
+              >
+                {score}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/*Input Timer, only for KOTC*/}
+      {selectedFormat == "KING OF THE COURT" && (
+        <section className="mt-8 mb-8">
+          <h2 className="text-sm font-bold tracking-widest mb-4">
+            SET GAME DURATION
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center">
+              <input
+                type="text"
+                value={hours}
+                onChange={handleHoursChange}
+                placeholder="0"
+                className="w-12 h-10 text-l text-center border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              />
+            </div>
+
+            <span className="text-l font-bold text-gray-700 mx-2">H :</span>
+
+            <div className="flex flex-col items-center">
+              <input
+                type="text"
+                value={minutes}
+                onChange={handleMinutesChange}
+                placeholder="00"
+                className="w-12 h-10 text-l text-center border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              />
+            </div>
+
+            <span className="text-l font-bold text-gray-700 ml-2">M</span>
+          </div>
+
+          <div className="mt-6 text-sm text-gray-600">
+            {hours || minutes ? (
+              <p>
+                Duration: {hours || "0"} hour{hours !== "1" ? "s" : ""} and{" "}
+                {minutes || "0"} minute{minutes !== "1" ? "s" : ""}
+              </p>
+            ) : (
+              <p>Enter duration for your game session.</p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Players */}
       <section className="flex-grow">
@@ -170,6 +257,24 @@ export default function InputPage() {
         </div>
       </section>
 
+      {/* No. of Courts used*/}
+      <section className="mt-8 mb-8">
+        <h2 className="text-sm font-bold tracking-widest">
+          NO. OF COURTS USED
+        </h2>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col items-center">
+            <input
+              type="text"
+              value={numOfCourts}
+              onChange={handleCourtInput}
+              placeholder="2"
+              className="w-12 h-10 text-l text-center border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Enter Game Button - Fixed at bottom center */}
       <section className="mt-8 flex justify-center">
         <button
@@ -180,7 +285,5 @@ export default function InputPage() {
         </button>
       </section>
     </div>
-
-    // conditionally render a timer input x minutes for the game
   );
 }

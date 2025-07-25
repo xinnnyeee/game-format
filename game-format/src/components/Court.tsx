@@ -1,45 +1,37 @@
 import React from "react";
-import { Player, Team, Match } from "../utils/SKDoubleGenerator";
+
+// Mock types for demonstration - replace with your actual types
 
 interface CourtProps {
   courtNumber: number;
-  match: Match | undefined;
   playToScore: number;
-  score1: string;
-  score2: string;
+  name1?: string;
+  name2?: string;
+  score1: number;
+  score2: number;
   onScoreUpdate: (scorePosition: 1 | 2, value: string) => void;
   onCompleteMatch: () => void;
 }
 
 const Court: React.FC<CourtProps> = ({
   courtNumber,
-  match,
   playToScore,
+  name1,
+  name2,
   score1,
   score2,
   onScoreUpdate,
   onCompleteMatch,
 }) => {
   /**
-   * Get party display for team members
-   */
-  const getTeamMemberNames = (party: Player | Team): string => {
-    if ("name" in party) {
-      return party.name;
-    } else {
-      return `${party.player1.name} & ${party.player2.name}`;
-    }
-  };
-
-  /**
    * Check if a match can be completed
    */
-  const canCompleteMatch = (match: Match) => {
-    if (match.score1 === undefined || match.score2 === undefined) {
+  const canCompleteMatch = () => {
+    if (score1 === undefined || score2 === undefined) {
       return false;
     }
     // Must have at least one team reach the playToScore
-    return match.score1 === playToScore || match.score2 === playToScore;
+    return score1 === playToScore || score2 === playToScore;
   };
 
   const handleScoreChange = (team: 1 | 2, value: string) => {
@@ -57,13 +49,13 @@ const Court: React.FC<CourtProps> = ({
         </h3>
       </div>
 
-      {match ? (
+      {name1 && name2 ? (
         <div className="p-6">
           <p className="flex justify-end text-sm text-gray-600 mb-6 tracking-wider">
             SCORE
           </p>
           {[1, 2].map((team) => {
-            const party = team === 1 ? match.party1 : match.party2;
+            const party = team === 1 ? name1 : name2;
             const scoreValue = team === 1 ? score1 : score2;
 
             return (
@@ -72,7 +64,7 @@ const Court: React.FC<CourtProps> = ({
                 className="flex items-center justify-between mb-4"
               >
                 <span className="text-2xl font-semibold tracking-wider">
-                  {party ? getTeamMemberNames(party) : "TBD"}
+                  {party ? party : "TBD"}
                 </span>
                 <input
                   type="text"
@@ -92,7 +84,7 @@ const Court: React.FC<CourtProps> = ({
           <div className="mt-6 flex justify-end">
             <button
               onClick={onCompleteMatch}
-              disabled={!canCompleteMatch(match)}
+              disabled={!canCompleteMatch}
               className="px-4 py-2 bg-black text-white rounded-lg font-semibold tracking-wider hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               COMPLETE MATCH

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Team } from "../utils/SKDoubleGenerator";
+import type { Team } from "@/types";
 import logo from "../assets/logo.png";
 
 const SKGameSummary: React.FC = () => {

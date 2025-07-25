@@ -1,31 +1,49 @@
 import logo from "../assets/logo.png";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
-  generateDoubleMatchesFromPlayers,
-  tallyMatchScore,
+  initialise,
+  advanceMatch,
+  getPlayers,
+  generatePlayersFromMatches,
 } from "../utils/RRDoublesGenerator";
-import type {
-  Player,
-  Team,
-  Match,
-  Session,
-  Schedule,
-} from "../utils/RRDoublesGenerator";
+import type { Player, TournamentState } from "@/types";
+import Court from "../components/Court";
+
+interface CourtScores {
+  [courtNumber: number]: {
+    score1: number;
+    score2: number;
+  };
+}
 
 const RRGamePage = () => {
-  const [currentGame, setCurrentGame] = useState(1);
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [scores, setScores] = useState<{ [key: string]: number }>({});
+  // Tournament state management
+  const [tournamentState, setTournamentState] =
+    useState<TournamentState | null>(null);
+  const [courtScores, setCourtScores] = useState<CourtScores>({});
 
-  // create a unique identifier for the score
-  const getScoreKey = (gameIndex: number, matchIndex: number, team: number) =>
-    `${gameIndex}-${matchIndex}-${team}`;
+  const [numberOfCourts, setNumberOfCourts] = useState<number>(() => {
+    const locationState = location.state;
+    if (locationState?.numOfCourts) {
+      return locationState.numOfCourts;
+    } else {
+      const storedNumOfCourts = localStorage.getItem("numOfCourts");
+      if (storedNumOfCourts) {
+        try {
+          return JSON.parse(storedNumOfCourts);
+        } catch (error) {
+          console.error("Error parsing stored numOfCourts:", error);
+        }
+      }
+    }
+    return 2;
+  });
 
   // retrieve the players names & play-to score from input page
-  // converting them to Player[]
   const [players, setPlayers] = useState<Player[]>(() => {
     const locationState = location.state;
     let playerData = null;
@@ -43,7 +61,8 @@ const RRGamePage = () => {
     }
 
     if (Array.isArray(playerData)) {
-      return playerData.map((playerName: string) => ({
+      return playerData.map((playerName: string, index: number) => ({
+        id: playerName,
         name: playerName,
         score: 0,
       }));
@@ -68,36 +87,20 @@ const RRGamePage = () => {
     return 8;
   });
 
-  // Generate games only once and memoize
-  const baseGames: Schedule = useMemo(() => {
-    return generateDoubleMatchesFromPlayers(players);
-  }, [players]);
+  // Initialize tournament state
+  useEffect(() => {
+    if (players.length > 0) {
+      const initialState = initialise(numberOfCourts, players);
+      setTournamentState(initialState);
 
-  // Create games with current scores applied
-  const games: Schedule = useMemo(() => {
-    return baseGames.map((session, gameIndex) => {
-      const updatedMatches = session.map((match, matchIndex) => ({
-        ...match,
-        score1: scores[getScoreKey(gameIndex, matchIndex, 1)] || 0,
-        score2: scores[getScoreKey(gameIndex, matchIndex, 2)] || 0,
-      }));
-
-      // Ensure we always return exactly 2 matches for Session type
-      if (updatedMatches.length === 1) {
-        const dummyPlayer: Player = { name: "BYE", score: 0 };
-        const dummyMatch: Match = {
-          id: crypto.randomUUID(),
-          team1: [dummyPlayer, dummyPlayer],
-          team2: [dummyPlayer, dummyPlayer],
-          score1: 0,
-          score2: 0,
-        };
-        return [updatedMatches[0], dummyMatch] as Session;
+      // Initialize court scores
+      const initialCourtScores: CourtScores = {};
+      for (let i = 1; i <= numberOfCourts; i++) {
+        initialCourtScores[i] = { score1: 0, score2: 0 };
       }
-
-      return updatedMatches as Session;
-    });
-  }, [baseGames, scores]);
+      setCourtScores(initialCourtScores);
+    }
+  }, [players, numberOfCourts]);
 
   useEffect(() => {
     if (!players || players.length === 0) {
@@ -105,66 +108,167 @@ const RRGamePage = () => {
     }
   }, [players, navigate]);
 
-  if (!players || players.length === 0) return null;
+  // Auto-fill empty courts with available matches
+  useEffect(() => {
+    if (!tournamentState) return;
 
-  const totalGames = games.length;
-  const currentGameData = games[currentGame - 1] || games[0];
-  const progressPercentage = (currentGame / totalGames) * 100;
+    let stateChanged = false;
+    const newTournamentState = { ...tournamentState };
+
+    // Check each court to see if it needs a match
+    for (let courtNum = 1; courtNum <= numberOfCourts; courtNum++) {
+      const hasMatch = newTournamentState.currentMatches.some(
+        (m) => m.court === courtNum
+      );
+
+      if (!hasMatch && newTournamentState.pendingMatches.length > 0) {
+        // Find an available match for this court
+        const currentPlayers = generatePlayersFromMatches(
+          newTournamentState.currentMatches
+        );
+        const currPlayerSet = new Set(currentPlayers.map((p) => p.id));
+
+        for (let i = 0; i < newTournamentState.pendingMatches.length; i++) {
+          const potentialMatch = newTournamentState.pendingMatches[i];
+          const potentialMatchPlayers = getPlayers(potentialMatch);
+
+          // Check if this match has no player conflicts
+          const hasConflict = potentialMatchPlayers.some((player) =>
+            currPlayerSet.has(player.id)
+          );
+
+          if (!hasConflict) {
+            // Assign this match to the court
+            potentialMatch.court = courtNum;
+            newTournamentState.currentMatches.push(potentialMatch);
+            newTournamentState.pendingMatches.splice(i, 1);
+            stateChanged = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (stateChanged) {
+      setTournamentState(newTournamentState);
+    }
+  }, [tournamentState, numberOfCourts]);
 
   const handleGameSetup = () => {
-    setScores({});
     navigate("../InputPage");
   };
 
-  const handlePrevGame = () => {
-    if (currentGame > 1) {
-      setCurrentGame(currentGame - 1);
-    }
-  };
-
-  const handleNextGame = () => {
-    if (currentGame < totalGames) {
-      setCurrentGame(currentGame + 1);
-    }
-  };
-
-  const handleScoreInput = (
-    gameIndex: number,
-    matchIndex: number,
-    score: number,
-    team: number
-  ) => {
-    // Validate score first
-    if (score > playToScore) {
-      console.log(
-        `Invalid score: ${score} is greater than maximum ${playToScore}`
-      );
-      return;
-    }
-
-    // Only update React state - don't mutate games array directly
-    const key = getScoreKey(gameIndex, matchIndex, team);
-    setScores((prev) => ({
-      ...prev,
-      [key]: score,
-    }));
-  };
   const handleHome = () => {
     navigate("/");
     window.location.reload();
   };
 
+  const handleScoreUpdate = (
+    courtNumber: number,
+    scorePosition: 1 | 2,
+    value: string
+  ) => {
+    const numericValue = value === "" ? 0 : parseInt(value, 10);
+
+    // Validate score
+    if (numericValue > playToScore) {
+      return;
+    }
+
+    setCourtScores((prev) => ({
+      ...prev,
+      [courtNumber]: {
+        ...prev[courtNumber],
+        [`score${scorePosition}`]: numericValue,
+      },
+    }));
+  };
+
+  const completeMatch = (courtNumber: number) => {
+    const match = tournamentState?.currentMatches.find(
+      (m) => m.court === courtNumber
+    );
+    const scores = courtScores[courtNumber];
+
+    if (!match || !scores || !tournamentState) return;
+
+    // Update match scores
+    match.score1 = scores.score1;
+    match.score2 = scores.score2;
+
+    // Create new tournament state with advanced match
+    const newTournamentState = { ...tournamentState };
+    advanceMatch(match, newTournamentState);
+    setTournamentState(newTournamentState);
+
+    // Reset court scores
+    setCourtScores((prev) => ({
+      ...prev,
+      [courtNumber]: { score1: 0, score2: 0 },
+    }));
+  };
+
   const endGame = () => {
-    // Use the games array with applied scores for final tally
-    const playerRanks: Player[] = tallyMatchScore(games);
-    console.log("Final scores:", playerRanks);
+    if (!tournamentState) return;
 
     // Store final results for the summary page
-    localStorage.setItem("finalResults", JSON.stringify(playerRanks));
-    localStorage.setItem("finalGames", JSON.stringify(games));
-
+    localStorage.setItem(
+      "finalResults",
+      JSON.stringify(tournamentState.participatingPlayers)
+    );
+    localStorage.setItem(
+      "finalGames",
+      JSON.stringify(tournamentState.finishedMatches)
+    );
     navigate("./RRGameSummary");
   };
+
+  // Early return after all hooks are called - this is safe
+  if (!players || players.length === 0 || !tournamentState) {
+    return null;
+  }
+
+  const totalMatches =
+    tournamentState.pendingMatches.length +
+    tournamentState.currentMatches.length +
+    tournamentState.finishedMatches.length;
+  const completedMatches = tournamentState.finishedMatches.length;
+  const progressPercentage =
+    totalMatches > 0 ? (completedMatches / totalMatches) * 100 : 0;
+
+  const isGameComplete =
+    tournamentState.pendingMatches.length === 0 &&
+    tournamentState.currentMatches.length === 0;
+
+  // Generate court components
+  const courts = Array.from({ length: numberOfCourts }, (_, index) => {
+    const courtNumber = index + 1;
+    const match = tournamentState.currentMatches.find(
+      (m) => m.court === courtNumber
+    );
+    const courtScoresData = courtScores[courtNumber] || {
+      score1: 0,
+      score2: 0,
+    };
+    const party1Name = match?.party1?.id;
+    const party2Name = match?.party2?.id;
+
+    return (
+      <Court
+        key={courtNumber}
+        courtNumber={courtNumber}
+        name1={party1Name}
+        name2={party2Name}
+        playToScore={playToScore}
+        score1={courtScoresData.score1}
+        score2={courtScoresData.score2}
+        onScoreUpdate={(scorePosition: 1 | 2, value: string) =>
+          handleScoreUpdate(courtNumber, scorePosition, value)
+        }
+        onCompleteMatch={() => completeMatch(courtNumber)}
+      />
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -176,7 +280,7 @@ const RRGamePage = () => {
               onClick={handleHome}
               src={logo}
               alt="Logo"
-              className="w-12 h-12"
+              className="w-12 h-12 cursor-pointer"
             />
             <h1 className="text-xl font-black tracking-wider">Round Robin</h1>
           </div>
@@ -192,10 +296,10 @@ const RRGamePage = () => {
           </div>
         </div>
 
-        {/* Navigation and Game Counter */}
+        {/* Navigation and Game Status */}
         <div className="flex items-center justify-between mb-12">
           <button
-            onClick={currentGame < 2 ? handleGameSetup : handlePrevGame}
+            onClick={handleGameSetup}
             className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
           >
             <svg
@@ -210,21 +314,29 @@ const RRGamePage = () => {
             >
               <polyline points="15,18 9,12 15,6"></polyline>
             </svg>
-            {currentGame < 2 ? "GAME SETUP" : "PREV GAME"}
+            GAME SETUP
           </button>
 
           <div className="text-center">
             <h2 className="text-3xl font-bold tracking-wider">
-              GAME {currentGame}/{totalGames}
+              TOURNAMENT PROGRESS
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Play to {playToScore}</p>
+            <p className="text-sm text-gray-600 mt-1">
+              {completedMatches}/{totalMatches} matches completed | Play to{" "}
+              {playToScore}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Pending: {tournamentState.pendingMatches.length} | Active:{" "}
+              {tournamentState.currentMatches.length}
+            </p>
           </div>
 
           <button
-            onClick={currentGame === totalGames ? endGame : handleNextGame}
-            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors"
+            onClick={endGame}
+            disabled={!isGameComplete}
+            className="flex items-center gap-2 px-6 py-3 border-2 border-black rounded-lg font-semibold tracking-wider hover:bg-black hover:text-white transition-colors disabled:bg-gray-400 disabled:border-gray-400 disabled:cursor-not-allowed"
           >
-            {currentGame === totalGames ? "END GAME" : "NEXT GAME"}
+            END GAME
             <svg
               width="20"
               height="20"
@@ -242,63 +354,7 @@ const RRGamePage = () => {
 
         {/* Courts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {[0, 1].map((matchIndex) => {
-            const match = currentGameData[matchIndex];
-            return (
-              <div
-                key={matchIndex}
-                className="bg-white rounded-lg overflow-hidden shadow-lg"
-              >
-                <div className="bg-black text-white p-4">
-                  <h3 className="text-xl font-bold tracking-wider">
-                    COURT {matchIndex + 1}
-                  </h3>
-                </div>
-                <div className="p-6">
-                  <p className="flex justify-end text-sm text-gray-600 mb-6 tracking-wider">
-                    SCORE
-                  </p>
-                  {[1, 2].map((team) => {
-                    const teamPlayers = team === 1 ? match.team1 : match.team2;
-                    return (
-                      <div
-                        key={team}
-                        className="flex items-center justify-between mb-4"
-                      >
-                        <span className="text-2xl font-semibold tracking-wider">
-                          {teamPlayers[0].name} & {teamPlayers[1].name}
-                        </span>
-                        <input
-                          type="text"
-                          maxLength={2}
-                          inputMode="numeric"
-                          pattern="\d*"
-                          value={
-                            scores[
-                              getScoreKey(currentGame - 1, matchIndex, team)
-                            ] ?? ""
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            // Only allow numeric input
-                            if (value === "" || /^\d+$/.test(value)) {
-                              handleScoreInput(
-                                currentGame - 1,
-                                matchIndex,
-                                value === "" ? 0 : Number(value),
-                                team
-                              );
-                            }
-                          }}
-                          className="w-10 h-6 text-center border-2 border-gray-400 rounded-sm focus:outline-none focus:border-black"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {courts}
         </div>
       </div>
     </div>
