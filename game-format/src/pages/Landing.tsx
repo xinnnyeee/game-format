@@ -20,10 +20,6 @@ interface LandingOption {
 // ============================================================================
 const Landing = () => {
   const navigate = useNavigate();
-  // --------------------------------------------------------------------------
-  // STATE MANAGEMENT
-  // --------------------------------------------------------------------------
-  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
 
   // --------------------------------------------------------------------------
   // DATA CONFIGURATION
@@ -67,7 +63,6 @@ const Landing = () => {
   const handleFormatClick = (formatId: string) => {
     // Prevent selection of the "choose" header card
     if (formatId !== "CHOOSE YOUR GAME FORMAT.") {
-      setSelectedFormat(formatId);
       localStorage.setItem("selectedFormat", formatId);
       navigate("/InputPage");
     }
