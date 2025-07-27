@@ -123,6 +123,12 @@ export default function InputPage() {
     }
   };
 
+  // Function to reset all player names
+  const resetPlayers = () => {
+    setPlayers(Array(8).fill(""));
+    localStorage.removeItem("Players"); // Clear players from localStorage
+  };
+
   const handleHome = () => {
     navigate("/");
     window.location.reload();
@@ -265,14 +271,22 @@ export default function InputPage() {
           <h2 className="text-sm font-bold tracking-widest">
             PLAYERS ({players.length})
           </h2>
-          {players.length < 14 && (
+          <div className="flex gap-2">
             <button
-              onClick={addPlayer}
-              className="border border-black px-3 py-1 rounded-full text-sm"
+              onClick={resetPlayers}
+              className="border border-gray-400 text-gray-600 px-3 py-1 rounded-full text-sm hover:border-gray-600 hover:text-gray-800 transition-colors"
             >
-              Add
+              Reset Players
             </button>
-          )}
+            {players.length < 14 && (
+              <button
+                onClick={addPlayer}
+                className="border border-black px-3 py-1 rounded-full text-sm"
+              >
+                Add
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
