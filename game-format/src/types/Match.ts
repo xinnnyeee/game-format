@@ -3,7 +3,7 @@ import { Player, Team } from "./index";
 export interface Match {
   id: string;
   type: "single" | "double";
-  king?: Team | Player; // KOTC special
+  king?: Team; // KOTC special
   challenger?: Team; // KOTC special
   party1?: Team | Player;
   party2?: Team | Player;

@@ -7,5 +7,5 @@ export interface TournamentState {
     currentMatches: Match[]; // Changed from currentMatch to currentMatches array
     participatingPlayers?: Player[];
     participatingTeams?: Team[];
-    king?: Team;
+    kings?: Team[];
   }

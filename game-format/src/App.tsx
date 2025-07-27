@@ -9,7 +9,7 @@ import OPGamePage from "./pages/OPGamePage";
 import KOTCGamePage from "./pages/KOTCGamePage";
 import RRGameSummary from "./pages/RRGameSummary";
 import SKGameSummary from "./pages/SKGameSummary";
-import React from "react";
+import KOTCGameSummary from "./pages/KOTCGameSummary";
 
 function App() {
   return (
@@ -27,6 +27,10 @@ function App() {
       <Route
         path="/InputPage/SKGamePage/SKGameSummary"
         element={<SKGameSummary />}
+      />
+      <Route
+        path="/InputPage/KOTCGamePage/KOTCGameSummary"
+        element={<KOTCGameSummary />}
       />
     </Routes>
   );

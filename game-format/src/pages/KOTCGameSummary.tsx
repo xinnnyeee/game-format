@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
-import { Player } from "@/types";
+import { Team } from "@/types";
 
 interface PlayerResult {
   rank: number;
@@ -9,11 +9,11 @@ interface PlayerResult {
   score: number;
 }
 
-const RRGameSummary: React.FC = () => {
+const KOTCGameSummary: React.FC = () => {
   const navigate = useNavigate();
-  const [playerRank, setPlayerRank] = useState<Player[]>([]);
+  const [playerRank, setPlayerRank] = useState<Team[]>([]);
   useEffect(() => {
-    const storedResults = localStorage.getItem("finalResults");
+    const storedResults = localStorage.getItem("KOTCFinalResults");
     if (storedResults) {
       try {
         setPlayerRank(JSON.parse(storedResults));
@@ -146,4 +146,4 @@ const RRGameSummary: React.FC = () => {
   );
 };
 
-export default RRGameSummary;
+export default KOTCGameSummary;

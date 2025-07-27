@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { Player, TournamentState } from "@/types";
+import type { Player, TournamentState, CourtScore } from "@/types";
 import {
   initialiseMatches,
   advanceMatch,
@@ -10,11 +10,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Court from "../components/Court";
 import logo from "../assets/logo.png";
 import Banner from "@/components/Banner";
-
-interface CourtScore {
-  score1: number;
-  score2: number;
-}
 
 const SKGamePage: React.FC = () => {
   const location = useLocation();

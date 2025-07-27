@@ -3,7 +3,6 @@ import { useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
 import trashIcon from "../assets/trash.png";
 import { useNavigate } from "react-router-dom";
-//import {Player} from "../utils/RRDoublesGenerator";
 
 export default function InputPage() {
   const location = useLocation(); // needed to pass states around
@@ -14,8 +13,10 @@ export default function InputPage() {
     setSelectedFormat(storedFormat);
   }, []);
   const [playToScore, setPlayToScore] = useState(8);
+  const [customScore, setCustomScore] = useState(""); // New state for custom score input
+  const [isCustomSelected, setIsCustomSelected] = useState(false); // Track if custom input is selected
   const [numOfCourts, setNumOfCourts] = useState(2);
-  const [gameDuration, setGameDuration] = useState(); // in minutes
+  const [gameDuration, setGameDuration] = useState(0); // in seconds
   // create an array to record players as a "useState" - start with 8 players
   const [players, setPlayers] = useState<string[]>(() => {
     // Check if we're returning from game page with previous players
@@ -47,7 +48,6 @@ export default function InputPage() {
 
     if (value > Math.floor(players.length / 2)) {
       console.log(`Number of courts too many for the players`);
-      // TODO: make actual warning here instead of using console log
     }
 
     setNumOfCourts(value);
@@ -57,6 +57,9 @@ export default function InputPage() {
     const value = e.target.value;
     if (value === "" || (/^\d+$/.test(value) && parseInt(value) >= 0)) {
       setHours(value);
+      const newHours = parseInt(value) || 0;
+      const currentMinutes = parseInt(minutes) || 0;
+      setGameDuration(newHours * 60 * 60 + currentMinutes * 60);
     }
   };
 
@@ -67,7 +70,33 @@ export default function InputPage() {
       (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 59)
     ) {
       setMinutes(value);
+      const currentHours = parseInt(hours) || 0;
+      const newMinutes = parseInt(value) || 0;
+      setGameDuration(currentHours * 60 * 60 + newMinutes * 60);
     }
+  };
+
+  // Handle preset score button clicks
+  const handleScoreButtonClick = (score: number) => {
+    setPlayToScore(score);
+    setIsCustomSelected(false);
+    setCustomScore("");
+  };
+
+  // Handle custom score input
+  const handleCustomScoreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "" || (/^\d+$/.test(value) && parseInt(value) > 0)) {
+      setCustomScore(value);
+      if (value !== "") {
+        setPlayToScore(parseInt(value));
+      }
+    }
+  };
+
+  // Handle custom score input focus
+  const handleCustomScoreFocus = () => {
+    setIsCustomSelected(true);
   };
 
   // reads the input and add to the array
@@ -75,10 +104,6 @@ export default function InputPage() {
     const updatedPlayers = [...players];
     updatedPlayers[index] = value;
     setPlayers(updatedPlayers);
-  };
-
-  const selectPlayToScore = (score: number) => {
-    setPlayToScore(score);
   };
 
   // Function to add a new player
@@ -104,20 +129,26 @@ export default function InputPage() {
   };
 
   const enterGame = () => {
-    // TODO: add checking - all the input is done
-
-    const stateToPass = { players, playToScore, numOfCourts };
     localStorage.setItem("Players", JSON.stringify(players));
-    localStorage.setItem("playToScore", JSON.stringify(playToScore));
     localStorage.setItem("numOfCourts", JSON.stringify(numOfCourts));
+    localStorage.setItem("gameDuration", JSON.stringify(gameDuration));
 
     if (selectedFormat == "ROUND ROBIN") {
+      localStorage.setItem("playToScore", JSON.stringify(playToScore));
+      const stateToPass = { players, playToScore, numOfCourts };
       navigate("./RRGamePage", { state: stateToPass });
     } else if (selectedFormat == "SINGLE KNOCKOUT") {
+      localStorage.setItem("playToScore", JSON.stringify(playToScore));
+      const stateToPass = { players, playToScore, numOfCourts };
       navigate("./SKGamePage", { state: stateToPass });
     } else if (selectedFormat == "OPEN PLAY") {
+      localStorage.setItem("playToScore", JSON.stringify(playToScore));
+      const stateToPass = { players, playToScore, numOfCourts };
       navigate("./OPGamePage", { state: stateToPass });
     } else if (selectedFormat == "KING OF THE COURT") {
+      setPlayToScore(2);
+      localStorage.setItem("playToScore", JSON.stringify(playToScore));
+      const stateToPass = { players, playToScore, numOfCourts, gameDuration };
       navigate("./KOTCGamePage", { state: stateToPass });
     } else {
       console.log(
@@ -149,13 +180,13 @@ export default function InputPage() {
           <h2 className="text-sm font-bold tracking-widest mb-4">
             SET PLAY-TO SCORE
           </h2>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
             {[8, 11, 15].map((score) => (
               <button
                 key={score}
-                onClick={() => setPlayToScore(score)}
+                onClick={() => handleScoreButtonClick(score)}
                 className={`border px-3 py-1 rounded-full text-sm transition-colors ${
-                  playToScore === score
+                  playToScore === score && !isCustomSelected
                     ? "border-black bg-black text-white"
                     : "border-black bg-white text-black hover:bg-gray-100"
                 }`}
@@ -163,6 +194,22 @@ export default function InputPage() {
                 {score}
               </button>
             ))}
+            {/* Custom score input */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">or</span>
+              <input
+                type="text"
+                value={customScore}
+                onChange={handleCustomScoreChange}
+                onFocus={handleCustomScoreFocus}
+                placeholder="Custom"
+                className={`w-20 px-3 py-1 text-sm text-center border rounded-full transition-colors ${
+                  isCustomSelected
+                    ? "border-black bg-black text-white placeholder-gray-300"
+                    : "border-black bg-white text-black placeholder-gray-500 hover:bg-gray-100"
+                } focus:outline-none`}
+              />
+            </div>
           </div>
         </section>
       )}
