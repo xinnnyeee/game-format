@@ -16,7 +16,7 @@ const SKGamePage: React.FC = () => {
   const navigate = useNavigate();
 
   // Configurable number of courts - can be made dynamic through props or state
-  const [numberOfCourts, setNumberOfCourts] = useState<number>(() => {
+  const [numberOfCourts] = useState<number>(() => {
     const locationState = location.state;
     if (locationState?.numOfCourts) {
       return locationState.numOfCourts;
@@ -33,7 +33,7 @@ const SKGamePage: React.FC = () => {
     return 2;
   });
 
-  const [players, setPlayers] = useState<Player[]>(() => {
+  const [players] = useState<Player[]>(() => {
     const locationState = location.state;
     let playerData = null;
     if (locationState?.players) {
@@ -58,7 +58,7 @@ const SKGamePage: React.FC = () => {
     return [];
   });
 
-  const [playToScore, setPlayToScore] = useState<number>(() => {
+  const [playToScore] = useState<number>(() => {
     const locationState = location.state;
     if (locationState?.playToScore) {
       return locationState.playToScore;
