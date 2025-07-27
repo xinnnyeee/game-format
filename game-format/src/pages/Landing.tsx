@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import singleKnockoutImg from "../assets/single-knockout.jpg";
 import roundRobinImg from "../assets/round-robin.jpg";
 import openPlayImg from "../assets/open-play.jpg";

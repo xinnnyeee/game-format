@@ -15,14 +15,14 @@ const KOTCGamePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [numberOfCourts, setNumberOfCourts] = useState<number>(() => {
+  const [numberOfCourts] = useState<number>(() => {
     const locationState = location.state;
     if (locationState?.numOfCourts) return locationState.numOfCourts;
     const stored = localStorage.getItem("numOfCourts");
     return stored ? JSON.parse(stored) : 2;
   });
 
-  const [players, setPlayers] = useState<string[]>(() => {
+  const [players] = useState<string[]>(() => {
     const locationState = location.state;
     let playerData = locationState?.players;
     if (!playerData) {
@@ -36,7 +36,7 @@ const KOTCGamePage: React.FC = () => {
   const playToScore = 2;
 
   // Generate teams from players
-  const [teams, setTeams] = useState<Team[]>(() => {
+  const [teams] = useState<Team[]>(() => {
     return generateTeams(players);
   });
 
