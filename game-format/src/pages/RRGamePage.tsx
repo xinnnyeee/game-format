@@ -26,7 +26,7 @@ const RRGamePage = () => {
     useState<TournamentState | null>(null);
   const [courtScores, setCourtScores] = useState<CourtScores>({});
 
-  const [numberOfCourts, setNumberOfCourts] = useState<number>(() => {
+  const [numberOfCourts] = useState<number>(() => {
     const locationState = location.state;
     if (locationState?.numOfCourts) {
       return locationState.numOfCourts;
@@ -44,7 +44,7 @@ const RRGamePage = () => {
   });
 
   // retrieve the players names & play-to score from input page
-  const [players, setPlayers] = useState<Player[]>(() => {
+  const [players] = useState<Player[]>(() => {
     const locationState = location.state;
     let playerData = null;
     if (locationState?.players) {
@@ -61,7 +61,7 @@ const RRGamePage = () => {
     }
 
     if (Array.isArray(playerData)) {
-      return playerData.map((playerName: string, index: number) => ({
+      return playerData.map((playerName: string) => ({
         id: playerName,
         name: playerName,
         score: 0,
@@ -70,7 +70,7 @@ const RRGamePage = () => {
     return [];
   });
 
-  const [playToScore, setPlayToScore] = useState<number>(() => {
+  const [playToScore] = useState<number>(() => {
     const locationState = location.state;
     if (locationState?.playToScore) {
       return locationState.playToScore;
