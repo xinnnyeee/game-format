@@ -62,7 +62,7 @@ const KOTCGameSummary: React.FC = () => {
               <img src={logo} alt="Logo" className="w-12 h-12" />
 
               <h1 className="text-2xl font-bold text-gray-900 tracking-wider">
-                ROUND ROBIN RESULTS
+                KING OF THE COURT RESULTS
               </h1>
             </div>
           </div>
