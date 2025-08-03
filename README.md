@@ -206,13 +206,12 @@ src/
 └── main.tsx                 # Application entry point
 ```
 
-## 🎯 Roadmap
+## Potential Future Development
 
-- [ ] Add more tournament formats (Swiss system, Double elimination)
+- [ ] Add more tournament formats (Open Play)
 - [ ] Export results to PDF/Excel
-- [ ] Player statistics tracking
+- [ ] Player statistics tracking with user authentication
 - [ ] Tournament history and analytics
-- [ ] Mobile app version
 - [ ] Multi-language support
 
 ## 🤝 Contributing
@@ -223,22 +222,18 @@ src/
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 👥 Authors
 
-- **Your Name** - _Initial work_ - [xinnnyeee](https://github.com/xinnnyeee)
+- **Lin Xinyi** - _Initial work_ - [xinnnyeee](https://github.com/xinnnyeee)
 
 ## 🙏 Acknowledgments
 
-- Built with modern React and TypeScript
-- Designed for coaches and sports organizers
+- Built with React Vite and TypeScript
+- Designed for coaches and sports organizers at Performance Pickleball
 - Inspired by the need for simple tournament management tools
 
 ---
 
-**Live Demo**: [https://your-app.vercel.app](https://your-app.vercel.app)
+**Live Demo with Vercel**: [game-format.vercel.app](https://game-format.vercel.app)
 
 **Repository**: [https://github.com/xinnnyeee/game-format](https://github.com/xinnnyeee/game-format)
